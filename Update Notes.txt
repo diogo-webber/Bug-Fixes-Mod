@@ -1,0 +1,3 @@
+* Weather pain
+* Fire in tree seeds
+* Fix Crocodog settings in hamlet compatibility worlds
