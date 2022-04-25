@@ -2,6 +2,7 @@ env._G = GLOBAL
 
 env.TUNING = _G.TUNING
 env.GROUND = _G.GROUND
+env.STRINGS = _G.STRINGS
 env.GetConfig = GetModConfigData
 
 env.require = _G.require

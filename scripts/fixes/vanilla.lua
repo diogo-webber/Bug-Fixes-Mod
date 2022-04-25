@@ -20,16 +20,28 @@ end
 
 ------------------------------------------------------------------------------------
 
--- Fence deploy distance
-if GetConfig("fence") then
-    local function FenceDeploy(inst)
-        if inst.components and inst.components.deployable then
-            inst.components.deployable.deploydistance = 1.5
-        end
-    end
+STRINGS.ACTIONS.ACTIVATE.OPEN = "Open"
+STRINGS.ACTIONS.ACTIVATE.CLOSE = "Close"
 
-    AddPrefabPostInit("fence_item", FenceDeploy)
-    AddPrefabPostInit("fence_gate_item", FenceDeploy)
+STRINGS.ACTIONS.DEPLOY.FENCE = "Build Fence"
+STRINGS.ACTIONS.DEPLOY.GATE = "Build Gate"
+
+-- Fix "Activate" string on fence/gate toggle.
+AddPrefabPostInit("fence_gate", function(inst)
+    inst.components.activatable.getverb = function(inst, doer)
+        return inst.isopen and "CLOSE" or "OPEN"
+    end
+end)
+
+-- Fix "plant" string on fence/gate deploy.
+local _ACTIONS_DEPLOY_strfn = _G.ACTIONS.DEPLOY.strfn
+_G.ACTIONS.DEPLOY.strfn = function(act)
+    if act.invobject then
+        return 
+            act.invobject:HasTag("gatebuilder") and "GATE" or 
+            act.invobject:HasTag("fencebuilder") and "FENCE" or
+            _ACTIONS_DEPLOY_strfn(act)
+    end
 end
 
 ------------------------------------------------------------------------------------
@@ -123,7 +135,7 @@ AddPrefabPostInit("bundle", function(inst)
         end
 
         if doer ~= nil and doer.SoundEmitter ~= nil then
-            doer.SoundEmitter:PlaySound("dontstarve/common/together/packaged")
+            doer.SoundEmitter:PlaySound("dontstarve/common/craftable/bundles/packaged")
         end
         inst:Remove()
     end)
@@ -362,24 +374,82 @@ end)
 
 ------------------------------------------------------------------------------------
 
-local trees = {
-    "pinecone",
-    "acorn",
-    "coconut",
-    "jungletreeseed",
-    "burr",
-    "teatree_nut",
-}
+if GetConfig("treeseed") then
+    local trees = {
+        "pinecone",
+        "acorn",
+        "coconut",
+        "jungletreeseed",
+        "burr",
+        "teatree_nut",
+    }
 
-for _, tree in pairs(trees) do
-    AddPrefabPostInit(tree, function(inst)
-        local _onextinguish_fn = inst.event_listeners and inst.event_listeners["onextinguish"] and inst.event_listeners["onextinguish"][inst][1]
-        if _onextinguish_fn then
-            inst.event_listeners["onextinguish"][inst][1] = function(inst)
-                if not inst.components.inventoryitem then
-                    _onextinguish_fn(inst)
+    -- Fix the tree fire exploit, because chest growing trees isn't cool
+    for _, tree in ipairs(trees) do
+        AddPrefabPostInit(tree, function(inst)
+            local _onextinguish_fn = inst.event_listeners and inst.event_listeners["onextinguish"] and inst.event_listeners["onextinguish"][inst][1]
+            if _onextinguish_fn then
+                inst.event_listeners["onextinguish"][inst][1] = function(inst)
+                    if not inst.components.inventoryitem then
+                        _onextinguish_fn(inst)
+                    end
                 end
             end
-        end
-    end)
+        end)
+    end
 end
+
+------------------------------------------------------------------------------------
+
+-- Delay 3 frames to show the ARM_carry to don't glith the item_out anim
+AddComponentPostInit("equippable", function(self)
+    function self:Equip(owner, slot)
+        self.isequipped = true
+        
+        self.inst:PushEvent("equipped", {owner=owner, slot=slot})
+
+        if self.onequipfn then
+            owner:DoTaskInTime(3*FRAMES, function()
+                self.onequipfn(self.inst, owner)
+            end)
+        end
+        self.owner = owner
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Wilson/Generic quotes. Oh, dear Klei...
+local GENERIC = STRINGS.CHARACTERS.GENERIC
+GENERIC.DESCRIBE.FENCE = "It's just a wood fence."
+GENERIC.DESCRIBE.FENCE_ITEM = "All we need to build a nice, sturdy fence."
+GENERIC.DESCRIBE.FENCE_GATE = "It opens. And closes sometimes, too."
+GENERIC.DESCRIBE.FENCE_GATE_ITEM = "All we need to build a nice, sturdy gate."
+
+GENERIC.DESCRIBE.BUNDLE = "Our supplies are in there!"
+GENERIC.DESCRIBE.BUNDLEWRAP = "Wrapping things up should make them easier to carry."
+
+GENERIC.DESCRIBE.BEEFALO.DOMESTICATED = "This one is slightly less smelly than the others."
+GENERIC.DESCRIBE.BEEFALO.ORNERY = "It looks deeply angry."
+GENERIC.DESCRIBE.BEEFALO.RIDER = "This fellow appears quite ridable."
+GENERIC.DESCRIBE.BEEFALO.PUDGY = "Hmmm, there may be too much food inside it."
+GENERIC.DESCRIBE.BEEFALO.MYPARTNER = "We're beef friends forever."
+
+GENERIC.DESCRIBE.SADDLE_BASIC = "That'll allow the mounting of some smelly animal."
+GENERIC.DESCRIBE.SADDLE_RACE = "This saddle really flies!"
+GENERIC.DESCRIBE.SADDLE_WAR = "The only problem is the saddle sores."
+GENERIC.DESCRIBE.SADDLEHORN = "This could take a saddle off."
+GENERIC.DESCRIBE.SALTLICK = "How many licks does it take to get to the center?"
+GENERIC.DESCRIBE.BRUSH = "I bet the beefalo really like this."
+
+GENERIC.DESCRIBE.FEATHERPENCIL = "The feather increases the scientific properties of the writing."
+
+GENERIC.DESCRIBE.MINISIGN_ITEM = "It's not much use like this. We should place it."
+GENERIC.DESCRIBE.MINISIGN = {
+    GENERIC = "I could draw better than that!",
+    UNDRAWN = "We should draw something on there.",
+}
+
+GENERIC.ACTIONFAIL.WRAPBUNDLE = {
+    EMPTY = "I need to have something to wrap.",
+}

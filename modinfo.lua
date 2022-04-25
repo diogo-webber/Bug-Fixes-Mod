@@ -1,7 +1,7 @@
 name = "Bug Fixes"
 author = "Leonidas IV"
 
-version = "1.7"
+version = "1.8"
 
 api_version = 6
 forumthread = ""
@@ -16,84 +16,32 @@ icon = "modicon.tex"
 
 description = "\nFixes several popular bugs!"
 
-local pattern =
-{
-    {description = "Fixed", data = true},
-    {description = "Vanilla", data = false}
+------------------------------------------------------------------------------------
+
+local function Config(id, label)
+    return {
+        name = id,
+        label = label,
+        default = true,
+        options = {
+            {description = "Fixed", data = true},
+            {description = "Vanilla", data = false},
+        }
+    }    
+end
+
+configuration_options = {
+    Config("recipe", "Learn Recipes"),
+    Config("shadowcreature", "Shadow Creatures Spawn"),
+    Config("limpet", "Flingomatic - Limpet Rock"),
+    Config("trap", "Extra Trapped Mobs"),
+    Config("rain", "Hurricane Storm Fix"),
+    Config("pressureplate", "Pressures Plates"),
+    Config("gifts", "Wilba Gifts"),
+    Config("flup", "Flup Respawn"),
+    Config("butterfly", "Plant Flower Test"),
+    Config("bundle_fx", "Bundle Effects"),
+    Config("treeseed", "Tree Seed Exploit/Bug"),
+    Config("sealab", "Sea Lab Exclusive Recipes"),
 }
 
-configuration_options =
-{
-    {
-        name = "fence",
-        label = "Fence Deploy",
-        options = pattern,
-        default = true,
-    },
-    {
-        name = "recipe",
-        label = "Learn Recipes",
-        options = pattern,
-        default = true,
-    },
-    {
-        name = "shadowcreature",
-        label = "Shadow Creatures Spawn",
-        options = pattern,
-        default = true,
-    },
-    {
-        name = "limpet",
-        label = "Flingomatic - Limpet Rock",
-        options = pattern,
-        default = true,
-    },
-    {
-        name = "bee",
-        label = "Bees Flying over Water",
-        options = pattern,
-        default = true,
-    },
-    {
-        name = "trap",
-        label = "Extra Trapped Mobs",
-        options = pattern,
-        default = true,
-    },
-    {
-        name = "rain",
-        label = "Hurricane Storm Fix",
-        options = pattern,
-        default = true,
-    },
-    {
-        name = "pressureplate",
-        label = "Pressures Plates",
-        options = pattern,
-        default = true,
-    },
-    {
-        name = "gifts",
-        label = "Wilba Gifts",
-        options = pattern,
-        default = true,
-    },
-    {
-        name = "flup",
-        label = "Flup Spawn",
-        options = pattern,
-        default = true,
-    },
-    {
-        name = "butterfly",
-        label = "Plant Flower Test",
-        options = pattern,
-        default = true,
-    },
-    {
-        name = "bundle_fx",
-        label = "Bundle Effects",
-        options = pattern,
-        default = true,
-    },
-}

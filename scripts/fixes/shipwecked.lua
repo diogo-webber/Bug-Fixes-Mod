@@ -1,3 +1,9 @@
+
+-- Spice Pack will not be invisible when the player isn't Warly.
+table.insert(Assets, Asset("ANIM", "anim/swap_chefpack.zip"))
+
+------------------------------------------------------------------------------------
+
 if GetConfig("recipe") then
     -- Learn non-unlockable recipes + Wicker Science 1
     AddComponentPostInit("builder", function (self)
@@ -485,9 +491,116 @@ end)
 
 ------------------------------------------------------------------------------------
 
-AddPrefabPostInit("tarlamp", function(inst)
-    inst.OnLoad = function(inst,data)
-        inst.wason = data and data.wason
-        inst.turnoff(inst)
+local function FenceDeployFixes(inst)
+    -- Fence/gate deploy distance like walls
+    inst.components.deployable:SetQuantizeFunction(function(pt)
+        return _G.Vector3(math.floor(pt.x)+.5, 0, math.floor(pt.z)+.5)
+    end)
+
+    inst.components.deployable.deploydistance = 1.5
+
+    if hasHAM then return end
+
+    -- Fix fence deploy on water in non-hamlet worlds.
+    local _test = inst.components.deployable.test
+    inst.components.deployable.test = function(inst, pt, deployer)
+        local tile = _G.GetWorld().Map:GetTileAtPoint(pt.x,pt.y,pt.z)
+        local onWater = _G.GetWorld().Map:IsWater(tile)
+        
+        return _test and not onWater
+    end
+end
+
+AddPrefabPostInit("fence_item", FenceDeployFixes)
+AddPrefabPostInit("fence_gate_item", FenceDeployFixes)
+
+------------------------------------------------------------------------------------
+
+-- Coconut TreeGuard stats scale with his size scale properly.
+AddPrefabPostInit("treeguard", function(inst)
+    local _SetRange = inst.SetRange
+    local _SetMelee = inst.SetMelee
+
+    
+    inst.SetRange =  function(inst)
+        if inst.combatmode == "RANGE" then return end
+        
+        _SetRange(inst)
+
+        local scale = inst.Transform:GetScale()
+        inst.components.combat:SetRange(20*scale, 25*scale)
+    end
+
+    inst.SetMelee = function(inst)
+        if inst.combatmode == "MELEE" then return end
+        
+        _SetMelee(inst)
+        
+        local scale = inst.Transform:GetScale()
+        inst.components.combat:SetRange(20*scale, 3*scale)
+
+        inst.components.combat:SetDefaultDamage(TUNING.PALMTREEGUARD_DAMAGE*scale)
     end
 end)
+
+------------------------------------------------------------------------------------
+
+-- Tar Extractor and Sea Yeard properly require Sea Lab to prototype, istead of handmade:
+
+if GetConfig("sealab") then
+    _G.TECH.WATER_TWO = {WATER = 2}
+
+    AddComponentPostInit("builder", function(self)
+        self.water_bonus = 0
+
+        local _EvaluateTechTrees = self.EvaluateTechTrees
+        local _KnowsRecipe = self.KnowsRecipe
+
+        -- techtreechange event for Water tech
+        function self:EvaluateTechTrees()
+            local old_accessible_tech_trees = _G.deepcopy(self.accessible_tech_trees or TECH.NONE)
+
+            self.accessible_tech_trees.WATER = self.water_bonus
+
+            _EvaluateTechTrees(self)
+            local trees_changed = false
+
+            for k, v in pairs(old_accessible_tech_trees) do
+                if v ~= self.accessible_tech_trees[k] then 
+                    trees_changed = true
+                    break
+                end
+            end
+            if not trees_changed then
+                for k, v in pairs(self.accessible_tech_trees) do
+                    if v ~= old_accessible_tech_trees[k] then 
+                        trees_changed = true
+                        break
+                    end
+                end
+            end
+
+            if trees_changed then -- Re-check for tech tree change
+                self.inst:PushEvent("techtreechange", {level = self.accessible_tech_trees})
+            end
+        end
+
+        function self:KnowsRecipe(recname)
+            if recname ~= "tar_extractor" and recname ~= "sea_yard" then
+                return _KnowsRecipe(self, recname)
+            end
+            
+            local recipe = _G.GetRecipe(recname)
+            if recipe then
+                if recipe.level.WATER <= self.water_bonus then -- Show the recipe if near Sea Lab
+                    return true
+                end
+            end
+
+            return self.freebuildmode or self.jellybrainhat or (self:IsBuildBuffered(recname) or table.contains(self.recipes, recname))
+        end
+    end)
+end
+
+------------------------------------------------------------------------------------
+

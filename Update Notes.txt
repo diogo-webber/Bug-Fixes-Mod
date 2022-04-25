@@ -1,3 +1,23 @@
-* Weather pain
-* Fire in tree seeds
-* Fix Crocodog settings in hamlet compatibility worlds
+[*]Coconut will no longer be split in inventory by Weather Pain (SW+)
+[*]Adjusted weather pain tornado destruction rate, like DST.
+[*]Chef Pouch will not be invisible when the player is not Warly (SW+)
+
+[*]Fences/Gates Fixes:
+
+[*]Adds distance to the placement, like walls. That is, you don't have to go exactly to the location to deploy.
+[*]They will no longer be angled wrongly when leaving an interior (HAM+).
+[*]Can no longer be placed in water in non-hamlet worlds (SW).
+[*]Adds the open, close and place verbs.
+
+[*]The Palm Treeguard's range and damage scale correctly with their size (SW+).
+[*]Tar Extractor and Sea Yeard need Sea Lab to be prototyped. Yeah, it was meant to be this way (SW+).
+[*]Seeds that are ignited and then extinguished will not be planted when loading a world (RoG+).
+[*]Add Wilson (Generic) quotes for items added in DS QoL Update (fences, mini sign, saddles, bundle...)
+[*]Fix a glitch when equipping something in the hand slot where the item would appear quickly before the equip animation.
+[*]Crocodogs Attack Config works correctly in hamlet worlds (HAM).
+[*]Removes the Wicker Basket map icon from the Deflated Balloon structure (HAM).
+[*]Fix a incoerrent shadow in Grabbing Vine idle (HAM).
+
+
+Mod Problem:
+[*]Fix bundle unwrap sound.
