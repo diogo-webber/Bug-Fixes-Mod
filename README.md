@@ -1,4 +1,4 @@
-<img src="https://steamuserimages-a.akamaihd.net/ugc/1817769902709684429/EBADFF769D4B9445F37F9E3317D7F8652EC3EE42/" align="left" width="200px"/>
+<img src="https://steamuserimages-a.akamaihd.net/ugc/1817769902709684429/EBADFF769D4B9445F37F9E3317D7F8652EC3EE42/" align="left" width="185px"/>
 
 # [Bug Fixes Mod](https://steamcommunity.com/workshop/filedetails/discussion/2767977231/3189115819995770020/)
 
@@ -6,7 +6,6 @@
 
 Install and check all information and versions on the [mod page](https://steamcommunity.com/sharedfiles/filedetails/?id=2767977231) in the Steam workshop.
 
-<br>
 <br>
 
 ## Contributing to the project
