@@ -403,10 +403,17 @@ end
 
 -- Delay 3 frames to show the ARM_carry to don't glith the item_out anim
 AddComponentPostInit("equippable", function(self)
-    function self:SetOnEquip(fn)
-        self.onequipfn = function(inst, owener, swapbuildoverride)
-            owener:DoTaskInTime(3*FRAMES, function()
-                fn(inst, owener, swapbuildoverride)
+    local _Equip = self.Equip
+    function self:Equip(owner, slot)
+        local _onequipfn = self.onequipfn
+        
+        self.onequipfn = nil
+        _Equip(self, owner, slot)
+        self.onequipfn = _onequipfn
+        
+        if self.onequipfn then
+            owner:DoTaskInTime(3*FRAMES, function()
+                self.onequipfn(self.inst, owner, self.swapbuildoverride or nil)
             end)
         end
     end

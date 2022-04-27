@@ -205,4 +205,13 @@ end)
 
 ------------------------------------------------------------------------------------
 
-
+-- Navigadget sometimes bug, showing the last equip when unequipping it.
+AddPrefabPostInit("wheeler_tracker", function(inst)
+    local _onequipfn = inst.components.equippable.onequipfn
+    inst.components.equippable:SetOnEquip(
+        function(inst, owner, force)
+            owner.AnimState:ClearOverrideSymbol("swap_object")
+            _onequipfn(inst, owner, force)
+        end
+    )
+end)

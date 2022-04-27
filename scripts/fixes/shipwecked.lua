@@ -554,3 +554,10 @@ AddComponentPostInit("terraformer", function(self)
         
     end
 end)
+
+------------------------------------------------------------------------------------
+
+-- Save-exit when using the Quackering Ram attack don't corrupt the save anymore.
+AddPrefabPostInit("quackering_wake", function(inst)
+    inst.persists = false
+end)
