@@ -521,7 +521,6 @@ AddPrefabPostInit("treeguard", function(inst)
     local _SetRange = inst.SetRange
     local _SetMelee = inst.SetMelee
 
-    
     inst.SetRange =  function(inst)
         if inst.combatmode == "RANGE" then return end
         
@@ -545,62 +544,13 @@ end)
 
 ------------------------------------------------------------------------------------
 
--- Tar Extractor and Sea Yeard properly require Sea Lab to prototype, istead of handmade:
-
-if GetConfig("sealab") then
-    _G.TECH.WATER_TWO = {WATER = 2}
-
-    AddComponentPostInit("builder", function(self)
-        self.water_bonus = 0
-
-        local _EvaluateTechTrees = self.EvaluateTechTrees
-        local _KnowsRecipe = self.KnowsRecipe
-
-        -- techtreechange event for Water tech
-        function self:EvaluateTechTrees()
-            local old_accessible_tech_trees = _G.deepcopy(self.accessible_tech_trees or TECH.NONE)
-
-            self.accessible_tech_trees.WATER = self.water_bonus
-
-            _EvaluateTechTrees(self)
-            local trees_changed = false
-
-            for k, v in pairs(old_accessible_tech_trees) do
-                if v ~= self.accessible_tech_trees[k] then 
-                    trees_changed = true
-                    break
-                end
-            end
-            if not trees_changed then
-                for k, v in pairs(self.accessible_tech_trees) do
-                    if v ~= old_accessible_tech_trees[k] then 
-                        trees_changed = true
-                        break
-                    end
-                end
-            end
-
-            if trees_changed then -- Re-check for tech tree change
-                self.inst:PushEvent("techtreechange", {level = self.accessible_tech_trees})
-            end
-        end
-
-        function self:KnowsRecipe(recname)
-            if recname ~= "tar_extractor" and recname ~= "sea_yard" then
-                return _KnowsRecipe(self, recname)
-            end
-            
-            local recipe = _G.GetRecipe(recname)
-            if recipe then
-                if recipe.level.WATER <= self.water_bonus then -- Show the recipe if near Sea Lab
-                    return true
-                end
-            end
-
-            return self.freebuildmode or self.jellybrainhat or (self:IsBuildBuffered(recname) or table.contains(self.recipes, recname))
-        end
-    end)
-end
-
-------------------------------------------------------------------------------------
-
+--Volcano lava can no longer be removed with pitchfork
+AddComponentPostInit("terraformer", function(self)
+    local _CanTerraformPoint = self.CanTerraformPoint
+    function self:CanTerraformPoint(pt)
+        local tile = _G.GetWorld().Map:GetTileAtPoint(pt.x, pt.y, pt.z)
+        
+        return _CanTerraformPoint(self, pt) and tile ~= GROUND.VOLCANO_LAVA
+        
+    end
+end)

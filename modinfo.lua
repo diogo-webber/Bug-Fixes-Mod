@@ -1,7 +1,7 @@
 name = "Bug Fixes"
 author = "Leonidas IV"
 
-version = "1.8"
+version = "1.8.2"
 
 api_version = 6
 forumthread = ""
@@ -42,6 +42,5 @@ configuration_options = {
     Config("butterfly", "Plant Flower Test"),
     Config("bundle_fx", "Bundle Effects"),
     Config("treeseed", "Tree Seed Exploit/Bug"),
-    Config("sealab", "Sea Lab Exclusive Recipes"),
 }
 

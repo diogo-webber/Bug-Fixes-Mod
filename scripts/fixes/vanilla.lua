@@ -403,17 +403,12 @@ end
 
 -- Delay 3 frames to show the ARM_carry to don't glith the item_out anim
 AddComponentPostInit("equippable", function(self)
-    function self:Equip(owner, slot)
-        self.isequipped = true
-        
-        self.inst:PushEvent("equipped", {owner=owner, slot=slot})
-
-        if self.onequipfn then
-            owner:DoTaskInTime(3*FRAMES, function()
-                self.onequipfn(self.inst, owner)
+    function self:SetOnEquip(fn)
+        self.onequipfn = function(inst, owener, swapbuildoverride)
+            owener:DoTaskInTime(3*FRAMES, function()
+                fn(inst, owener, swapbuildoverride)
             end)
         end
-        self.owner = owner
     end
 end)
 
@@ -422,11 +417,11 @@ end)
 -- Wilson/Generic quotes. Oh, dear Klei...
 local GENERIC = STRINGS.CHARACTERS.GENERIC
 GENERIC.DESCRIBE.FENCE = "It's just a wood fence."
-GENERIC.DESCRIBE.FENCE_ITEM = "All we need to build a nice, sturdy fence."
+GENERIC.DESCRIBE.FENCE_ITEM = "All I need to build a nice, sturdy fence."
 GENERIC.DESCRIBE.FENCE_GATE = "It opens. And closes sometimes, too."
-GENERIC.DESCRIBE.FENCE_GATE_ITEM = "All we need to build a nice, sturdy gate."
+GENERIC.DESCRIBE.FENCE_GATE_ITEM = "All I need to build a nice, sturdy gate."
 
-GENERIC.DESCRIBE.BUNDLE = "Our supplies are in there!"
+GENERIC.DESCRIBE.BUNDLE = "My supplies are in there!"
 GENERIC.DESCRIBE.BUNDLEWRAP = "Wrapping things up should make them easier to carry."
 
 GENERIC.DESCRIBE.BEEFALO.DOMESTICATED = "This one is slightly less smelly than the others."
@@ -444,10 +439,10 @@ GENERIC.DESCRIBE.BRUSH = "I bet the beefalo really like this."
 
 GENERIC.DESCRIBE.FEATHERPENCIL = "The feather increases the scientific properties of the writing."
 
-GENERIC.DESCRIBE.MINISIGN_ITEM = "It's not much use like this. We should place it."
+GENERIC.DESCRIBE.MINISIGN_ITEM = "It's not much use like this. I should place it."
 GENERIC.DESCRIBE.MINISIGN = {
     GENERIC = "I could draw better than that!",
-    UNDRAWN = "We should draw something on there.",
+    UNDRAWN = "I should draw something on there.",
 }
 
 GENERIC.ACTIONFAIL.WRAPBUNDLE = {
