@@ -73,6 +73,12 @@ end
 local function FixCompanions(inst)
     if inst.prefab ~= "chester" then
         inst:RemoveTag("chester")
+    else
+        inst:DoTaskInTime(1.5, function(inst)
+            if not _G.TheSim:FindFirstEntityWithTag("chester_eyebone2") then
+                inst:Remove()
+            end
+        end)
     end
 
     inst:DoTaskInTime(0, function(inst)
@@ -88,6 +94,10 @@ end
 AddPrefabPostInit("chester", FixCompanions)
 AddPrefabPostInit("packim", FixCompanions)
 AddPrefabPostInit("ro_bin", FixCompanions)
+
+AddPrefabPostInit("chester_eyebone", function(inst)
+    inst:AddTag("chester_eyebone2")
+end)
 
 ------------------------------------------------------------------------------------
 
@@ -191,10 +201,6 @@ AddComponentPostInit("unwrappable", function(self)
         end
     end
 end)
-
-local TimeEvent = _G.TimeEvent
-local FRAMES = _G.FRAMES
-local EventHandler = _G.EventHandler
 
 local bundle_anim = GetConfig("bundle_fx") and "wrap" or "build"
 
@@ -417,6 +423,13 @@ AddComponentPostInit("equippable", function(self)
             end)
         end
     end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Tornado now ignore the spider web (very buggy without this)
+AddPrefabPostInit("tornado", function(inst)
+    inst.components.locomotor.pathcaps = { ignorecreep = true }
 end)
 
 ------------------------------------------------------------------------------------

@@ -1,4 +1,9 @@
 
-Mod Problems:
-[*]Fix a crash with hamlet worlds.
-[*]Remove Sea Lab recipes prototype fix, because it's causing many issues.
+Added:
+
+- Fixed ambient sound from higher DLCs in lower DLCs. For example: turfs from HAM will have their sounds when placed in SW. (SW+)
+- Mobs attacks on Fish Farms are no longer removed after save-load (SW+).
+- Fish farm sign no longer overlaps the boat (SW+).
+- Properly removes special character speed modifiers at World Reset. Also cures poison (SW+).
+- Fixed Boat Knight and Palm Guard ranged attack from causing a fake hurt sound (SW+).
+- Weather Pain's tornado will no longer "deflect" spider webs.

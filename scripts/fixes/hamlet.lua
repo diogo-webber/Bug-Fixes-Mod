@@ -75,14 +75,25 @@ AddPrefabPostInit("fence_gate", FixFenceRotationPosInteior)
 ------------------------------------------------------------------------------------
 
 if GetConfig("pressureplate") then
-    local function NoTriggerPressurePlates(inst)
-        inst:AddTag("flying")
+    local function TestForExtraTag(inst)
+        local _TestFn = inst.components.creatureprox.testfn
+        inst.components.creatureprox:SetTestfn(function(inst)
+            return _TestFn(inst) and not inst:HasTag("trap_imune")
+        end)
     end
 
-    -- No trigger traps fix
-    AddPrefabPostInit("pigghost", NoTriggerPressurePlates)
-    AddPrefabPostInit("terrorbeak", NoTriggerPressurePlates)
-    AddPrefabPostInit("crawlinghorror", NoTriggerPressurePlates)
+    AddPrefabPostInit("pig_ruins_pressure_plate", TestForExtraTag)
+    AddPrefabPostInit("pig_ruins_light_beam", TestForExtraTag) -- This tragger the spears 
+    
+    local function DontTriggerTraps(inst)
+        inst:AddTag("trap_imune")
+    end
+    
+    -- Dont trigger traps fix
+    AddPrefabPostInit("pigghost", DontTriggerTraps)
+    AddPrefabPostInit("abigail", DontTriggerTraps)
+    AddPrefabPostInit("terrorbeak", DontTriggerTraps)
+    AddPrefabPostInit("crawlinghorror", DontTriggerTraps)
 end
 
 ------------------------------------------------------------------------------------
@@ -117,7 +128,6 @@ end
 ------------------------------------------------------------------------------------
 
 local function CanTakeAmmo(inst, ammo, giver)
-
     return (ammo.components.inventoryitem ~= nil) and
             inst.components.trader.enabled and
             (
@@ -155,13 +165,6 @@ AddPrefabPostInit("spider_monkey_herd", function(inst_init)
         local ents = _G.TheSim:FindEntities(x,y,z, inst.components.herd.gatherrange, inst.components.herd.membertag and {inst.components.herd.membertag} or nil )
         return #ents < TUNING.ROCKYHERD_MAX_IN_RANGE
     end)
-end)
-
-------------------------------------------------------------------------------------
-
--- Fix Chester following Ro-bin Stone
-AddPrefabPostInit("ro_bin_gizzard_stone", function(inst)
-    inst:RemoveTag("chester_eyebone")
 end)
 
 ------------------------------------------------------------------------------------

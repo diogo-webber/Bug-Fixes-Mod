@@ -1,4 +1,3 @@
-
 -- Spice Pack will not be invisible when the player isn't Warly.
 table.insert(Assets, Asset("ANIM", "anim/swap_chefpack.zip"))
 
@@ -10,12 +9,7 @@ if GetConfig("recipe") then
         local _oldMakeRecipe = self.MakeRecipe
 
         function self:MakeRecipe(recipe, pt, rot, onsuccess, modifydata)
-            local makeRecipeSuccess = false
-            if hasHAM then
-                makeRecipeSuccess = _oldMakeRecipe(self, recipe, pt, rot, onsuccess, modifydata)
-            else
-                makeRecipeSuccess = _oldMakeRecipe(self, recipe, pt, rot, onsuccess)
-            end
+            local makeRecipeSuccess = _oldMakeRecipe(self, recipe, pt, rot, onsuccess, modifydata)
 
             if makeRecipeSuccess and not self.brainjellyhat then
                 self:AddRecipe(recipe.name)
@@ -31,10 +25,8 @@ end
 -- Wilbore in water fix
 AddPrefabPostInit("wildbore", function(inst)
     inst:DoPeriodicTask(TUNING.TOTAL_DAY_TIME, function(inst)
-        if inst and inst.Transform and _G.GetWorld() and _G.GetWorld().Map then
-            local pos = _G.Vector3(inst.Transform:GetWorldPosition())
-            local tile = _G.GetWorld().Map:GetTileAtPoint(pos:Get())
-            if _G.GetWorld().Map:IsWater(tile) then
+        if inst and inst.Transform and _G.GetWorld() and _G.GetMap() then
+            if inst:GetIsOnWater(inst:GetPosition():Get()) then
                 print("Finded a ".. inst.prefab .. " in the ocean! Removing him!")
                 inst:Remove()
             end
@@ -45,18 +37,18 @@ end)
 ------------------------------------------------------------------------------------
 
 if GetConfig("shadowcreature") then
-    -- Shadows water spawn fix
+    -- Shadows's water spawn fix
     AddStategraphPostInit("shadowcreature", function(self)
         self.states["hit"].events.animover.fn = function(inst)
-            if _G.GetWorld().Map then
+            if _G.GetMap() then
                 local max_tries = 4
                 for k = 1, max_tries do
                     local pos = _G.Vector3(inst.Transform:GetWorldPosition())
                     local offset = 10
                     pos.x = pos.x + (math.random(2*offset)-offset)          
                     pos.z = pos.z + (math.random(2*offset)-offset)
-                    local tile = _G.GetWorld().Map:GetTileAtPoint(pos:Get())
-                    if tile ~= GROUND.IMPASSABLE  and not _G.GetWorld().Map:IsWater(tile) and not _G.GetWorld().Map:IsShore(tile) then
+                    local tile = _G.GetMap():GetTileAtPoint(pos:Get())
+                    if tile ~= GROUND.IMPASSABLE and inst:IsPosSurroundedByLand(pos:Get(), 2) then
                         inst.Transform:SetPosition(pos:Get())
                         break
                     end
@@ -133,7 +125,7 @@ if GetConfig("trap") then
     AddPrefabPostInit("snake", AddTrapTag)
     AddPrefabPostInit("snake_poison", AddTrapTag)
     AddPrefabPostInit("flup", AddTrapTag)
-    if hasHAM then AddPrefabPostInit("snake_amphibious", AddTrapTag) end
+    AddPrefabPostInit("snake_amphibious", AddTrapTag)
 
 end
 
@@ -141,40 +133,36 @@ end
 
 if GetConfig("flup") then
     -- Fix Flup Respawn
-    AddPrefabPostInit("flupspawner", function(inst)
+    local function FlupSpawner(inst)
         inst.components.areaspawner.spawntest = nil
-    end)
+    end
+
+    AddPrefabPostInit("flupspawner", FlupSpawner)
+    AddPrefabPostInit("flupspawner_dense", FlupSpawner)
+    AddPrefabPostInit("flupspawner_sparse", FlupSpawner)
 end
 
 ------------------------------------------------------------------------------------
+
 if GetConfig("butterfly") then
     local notags = {'NOBLOCK', 'player', 'FX'}
     local function test_ground(inst, pt)
         local tiletype = _G.GetGroundTypeAtPosition(pt)
-
-        if tiletype > GROUND.UNDERGROUND then
-            return false
-        end
-
-        if _G.GetWorld().Map:IsWater(tiletype) then 
-            return false
-        end
         
         local notiles = {
             GROUND.ROCKY, GROUND.ROAD,  GROUND.IMPASSABLE, GROUND.UNDERROCK,
-            GROUND.WOODFLOOR, GROUND.MAGMAFIELD, GROUND.CARPET, GROUND.CHECKER,
-            GROUND.ASH, GROUND.VOLCANO, GROUND.VOLCANO_ROCK
+            GROUND.BRICK_GLOW, GROUND.WOODFLOOR, GROUND.MAGMAFIELD, GROUND.CARPET,
+            GROUND.CHECKER, GROUND.ASH, GROUND.VOLCANO, GROUND.VOLCANO_ROCK,
         }
 
         if hasHAM then
             table.insert(notiles, GROUND.INTERIOR)
-            table.insert(notiles, GROUND.BRICK_GLOW)
         end
         
-        for _, tile in ipairs(notiles) do
-            if tiletype == tile then
-                return false
-            end
+        if table.contains(notiles, tiletype)
+        or _G.GetMap():IsWater(tiletype)
+        or  tiletype > GROUND.UNDERGROUND then
+            return false
         end
 
         local ents = _G.TheSim:FindEntities(pt.x,pt.y,pt.z, 4, nil, notags)
@@ -211,10 +199,10 @@ AddStategraphPostInit("wilsonboating", function(self)
     end
 
     self.states["use_fan"].timeline = -- Fix Fans missing sound on boat
-        {
-            _G.TimeEvent(26*_G.FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/common/luxury_fan", "fan") end),
-            _G.TimeEvent(70*_G.FRAMES, function(inst) inst:PerformBufferedAction() end),
-            _G.TimeEvent(90*_G.FRAMES, function(inst) inst.SoundEmitter:KillSound("fan") end),
+        {   
+            TimeEvent(26*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/common/luxury_fan", "fan") end),
+            TimeEvent(70*FRAMES, function(inst) inst:PerformBufferedAction() end),
+            TimeEvent(90*FRAMES, function(inst) inst.SoundEmitter:KillSound("fan") end),
         }
 end)
 
@@ -247,7 +235,6 @@ end
 
 -- Packim's FishBone only lure and checks for Packim
 AddPrefabPostInit("packim_fishbone", function(inst)
-    inst:RemoveTag("chester_eyebone")
     local _RebindPackim = UpvalueHacker.GetUpvalue(inst.fixtask.fn, "FixPackim", "RebindPackim")
 
     local function RebindPackim(inst, packim)
@@ -430,14 +417,16 @@ end)
 
 ------------------------------------------------------------------------------------
 
--- Fix made by skittles sour <3       Mod: https://steamcommunity.com/sharedfiles/filedetails/?id=2635513673
--- "Fix for the bug where you're still walking at the speed of your boat upon climbing the volcano."
+-- Inspired by skittles sour's mod: https://steamcommunity.com/sharedfiles/filedetails/?id=2635513673
 AddPlayerPostInit(function(inst)
 	inst:DoTaskInTime(0, function()
-		if not _G.GetWorld():IsVolcano() then return end
-
-		inst.components.locomotor:RemoveSpeedModifier_Additive("DRIVER")
-	end)
+        if not _G.GetWorld():IsVolcano() then return end
+        
+        -- Fix Boat speed multipliers when climb volcano.
+        inst.components.locomotor:RemoveSpeedModifier_Additive("DRIVER")
+        inst.components.locomotor:RemoveSpeedModifier_Mult("TRAWL")
+        inst.components.locomotor:RemoveSpeedModifier_Mult("SAIL")
+    end)
 end)
 
 ------------------------------------------------------------------------------------
@@ -484,7 +473,7 @@ AddStategraphPostInit("tornado", function(self)
     for i, state in pairs({"walk", "run_start", "run", "run_stop"}) do
         self.states[state].timeline =
         {
-            _G.TimeEvent(5*_G.FRAMES, destroystuff),
+            TimeEvent(5*FRAMES, destroystuff),
         }
     end
 end)
@@ -497,17 +486,14 @@ local function FenceDeployFixes(inst)
         return _G.Vector3(math.floor(pt.x)+.5, 0, math.floor(pt.z)+.5)
     end)
 
-    inst.components.deployable.deploydistance = 1.5
+    inst.components.deployable.deploydistance = 1.5 -- (Deploy distance don't exist before SW)
 
     if hasHAM then return end
 
     -- Fix fence deploy on water in non-hamlet worlds.
     local _test = inst.components.deployable.test
     inst.components.deployable.test = function(inst, pt, deployer)
-        local tile = _G.GetWorld().Map:GetTileAtPoint(pt.x,pt.y,pt.z)
-        local onWater = _G.GetWorld().Map:IsWater(tile)
-        
-        return _test and not onWater
+        return _test and not inst:GetIsOnWater(pt:Get())
     end
 end
 
@@ -516,7 +502,7 @@ AddPrefabPostInit("fence_gate_item", FenceDeployFixes)
 
 ------------------------------------------------------------------------------------
 
--- Coconut TreeGuard stats scale with his size scale properly.
+-- Coconut TreeGuard stats scale with his size scale properly. (See TG spawn in palmtrees.lua for details)
 AddPrefabPostInit("treeguard", function(inst)
     local _SetRange = inst.SetRange
     local _SetMelee = inst.SetMelee
@@ -538,7 +524,7 @@ AddPrefabPostInit("treeguard", function(inst)
         local scale = inst.Transform:GetScale()
         inst.components.combat:SetRange(20*scale, 3*scale)
 
-        inst.components.combat:SetDefaultDamage(TUNING.PALMTREEGUARD_DAMAGE*scale)
+        inst.components.combat:SetDefaultDamage(scale*TUNING.PALMTREEGUARD_DAMAGE)
     end
 end)
 
@@ -548,10 +534,8 @@ end)
 AddComponentPostInit("terraformer", function(self)
     local _CanTerraformPoint = self.CanTerraformPoint
     function self:CanTerraformPoint(pt)
-        local tile = _G.GetWorld().Map:GetTileAtPoint(pt.x, pt.y, pt.z)
-        
+        local tile = _G.GetMap():GetTileAtPoint(pt.x, pt.y, pt.z)
         return _CanTerraformPoint(self, pt) and tile ~= GROUND.VOLCANO_LAVA
-        
     end
 end)
 
@@ -559,5 +543,97 @@ end)
 
 -- Save-exit when using the Quackering Ram attack don't corrupt the save anymore.
 AddPrefabPostInit("quackering_wake", function(inst)
-    inst.persists = false
+    inst.persists = false -- Don't save FX Klei...
 end)
+
+------------------------------------------------------------------------------------
+
+-- Original AmbientSoundMixer is connected to actual DLC map, causing high DLC's sounds 
+-- to not exits in that map. For example: hamlet turfs don't have ambient sounds in SW map
+AddComponentPostInit("ambientsoundmixer", function(mixer)
+    if hasHAM then
+        mixer = require "components/ambientsoundmixer_pork"
+    else
+        mixer = require "components/ambientsoundmixer_sw"
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+if GetConfig("fishfarm") then
+    -- Fix crocodog's attacks to fish farm. (Klei wrote luretask instead of lureTask)
+    AddComponentPostInit("breeder", function(self)
+        local _OnSave = self.OnSave
+        function self:OnSave()
+            local data = _OnSave(self)
+
+            if self.lureTask then
+                data.luretasktime = _G.GetTaskRemaining(self.lureTask)
+                data.luretask = data.luretasktime -- Other misswrite
+            end
+
+            return data
+        end
+    end)
+end
+
+------------------------------------------------------------------------------------
+
+-- Fix Fish Farm's Sign over the boat.
+AddPrefabPostInit("fish_farm_sign", function(inst)
+    inst.AnimState:SetLayer(_G.LAYER_BACKGROUND)
+	inst.AnimState:SetSortOrder(3)
+end)
+
+------------------------------------------------------------------------------------
+
+-- Fix character specials speed modifieres in World Reset
+AddComponentPostInit("locomotor", function(self)
+    function self:OnProgress()
+        if _G.SaveGameIndex:GetCurrentMode(_G.Settings.save_slot) ~= "adventure" then
+	        self.noserial = true
+        end
+    end
+
+    local _OnSave = self.OnSave
+    function self:OnSave()
+        if not self.noserial then
+            return _OnSave(self)
+        end
+        self.noserial = false
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Cure the poison after World Reset.
+AddComponentPostInit("poisonable", function(self)
+    function self:OnProgress()
+        if _G.SaveGameIndex:GetCurrentMode(_G.Settings.save_slot) ~= "adventure" then
+            self:Cure()
+        end 
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Fix Boat Knight and Palm Tree Guard's "fake" ranged attack
+AddStategraphPostInit("treeguard", function(self)
+    self.states["throw"].timeline = {
+        TimeEvent( 0       , function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/palm_tree_guard/tree_movement") end),
+        TimeEvent(05*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/palm_tree_guard/attack") end),
+        TimeEvent(22*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/palm_tree_guard/tree_movement") end),
+        TimeEvent(25*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/palm_tree_guard/coconut_throw") end),
+        TimeEvent(25*FRAMES, function(inst) inst:PushEvent("onattackother", {target=inst.sg.statemem.target}) end),
+        TimeEvent(26*FRAMES, function(inst) inst.sg:RemoveStateTag("attack") end),
+    }
+end)
+
+AddStategraphPostInit("knightboat", function(self)
+    self.states["attack"].timeline = {
+        TimeEvent( 0, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/knight_steamboat/attack") end),
+        TimeEvent(25*FRAMES, function(inst) inst:PushEvent("onattackother", {target=inst.sg.statemem.target or inst.components.combat.target}) end),
+        TimeEvent(31*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/knight_steamboat/cannon") end),
+    }
+end)
+

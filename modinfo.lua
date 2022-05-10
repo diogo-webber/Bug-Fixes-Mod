@@ -1,7 +1,7 @@
 name = "Bug Fixes"
 author = "Leonidas IV"
 
-version = "1.8.3"
+version = "1.9"
 
 api_version = 6
 forumthread = ""
@@ -42,5 +42,6 @@ configuration_options = {
     Config("butterfly", "Plant Flower Test"),
     Config("bundle_fx", "Bundle Effects"),
     Config("treeseed", "Tree Seed Exploit/Bug"),
+    Config("fishfarm", "Fish Farm Raids")
 }
 
