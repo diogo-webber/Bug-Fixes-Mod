@@ -434,6 +434,22 @@ end)
 
 ------------------------------------------------------------------------------------
 
+-- TODO: Soon
+--[[local function SkeletonTweak(inst)
+    inst.components.workable:SetWorkLeft(3)
+	inst.components.workable:SetOnFinishCallback(function(inst)
+        inst.components.lootdropper:DropLoot()
+        _G.SpawnPrefab("collapse_small").Transform:SetPosition(inst:GetPosition():Get())
+        inst.SoundEmitter:PlaySound("dontstarve/wilson/rock_break")
+        inst:Remove()
+    end)
+end
+
+AddPrefabPostInit("skeleton", SkeletonTweak)
+AddPrefabPostInit("skeleton_player", SkeletonTweak)
+]]
+------------------------------------------------------------------------------------
+
 -- Wilson/Generic quotes. Oh, dear Klei...
 local GENERIC = STRINGS.CHARACTERS.GENERIC
 GENERIC.DESCRIBE.FENCE = "It's just a wood fence."

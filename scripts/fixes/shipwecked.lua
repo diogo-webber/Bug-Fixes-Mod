@@ -48,7 +48,7 @@ if GetConfig("shadowcreature") then
                     pos.x = pos.x + (math.random(2*offset)-offset)          
                     pos.z = pos.z + (math.random(2*offset)-offset)
                     local tile = _G.GetMap():GetTileAtPoint(pos:Get())
-                    if tile ~= GROUND.IMPASSABLE and inst:IsPosSurroundedByLand(pos:Get(), 2) then
+                    if tile ~= GROUND.IMPASSABLE and inst:IsPosSurroundedByLand(pos.x, pos.y, pos.z, 2) then
                         inst.Transform:SetPosition(pos:Get())
                         break
                     end
@@ -530,14 +530,16 @@ end)
 
 ------------------------------------------------------------------------------------
 
---Volcano lava can no longer be removed with pitchfork
-AddComponentPostInit("terraformer", function(self)
-    local _CanTerraformPoint = self.CanTerraformPoint
-    function self:CanTerraformPoint(pt)
-        local tile = _G.GetMap():GetTileAtPoint(pt.x, pt.y, pt.z)
-        return _CanTerraformPoint(self, pt) and tile ~= GROUND.VOLCANO_LAVA
-    end
-end)
+if GetConfig("lava") then
+    --Volcano lava can no longer be removed with pitchfork
+    AddComponentPostInit("terraformer", function(self)
+        local _CanTerraformPoint = self.CanTerraformPoint
+        function self:CanTerraformPoint(pt)
+            local tile = _G.GetMap():GetTileAtPoint(pt.x, pt.y, pt.z)
+            return _CanTerraformPoint(self, pt) and tile ~= GROUND.VOLCANO_LAVA
+        end
+    end)
+end
 
 ------------------------------------------------------------------------------------
 
@@ -587,22 +589,24 @@ end)
 
 ------------------------------------------------------------------------------------
 
--- Fix character specials speed modifieres in World Reset
-AddComponentPostInit("locomotor", function(self)
-    function self:OnProgress()
-        if _G.SaveGameIndex:GetCurrentMode(_G.Settings.save_slot) ~= "adventure" then
-	        self.noserial = true
+if GetConfig("speed") then
+    -- Fix character specials speed modifieres in World Reset
+    AddComponentPostInit("locomotor", function(self)
+        function self:OnProgress()
+            if _G.SaveGameIndex:GetCurrentMode(_G.Settings.save_slot) ~= "adventure" then
+                self.noserial = true
+            end
         end
-    end
 
-    local _OnSave = self.OnSave
-    function self:OnSave()
-        if not self.noserial then
-            return _OnSave(self)
+        local _OnSave = self.OnSave
+        function self:OnSave()
+            if not self.noserial then
+                return _OnSave(self)
+            end
+            self.noserial = false
         end
-        self.noserial = false
-    end
-end)
+    end)
+end
 
 ------------------------------------------------------------------------------------
 
