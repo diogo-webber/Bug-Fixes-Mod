@@ -1,3 +1,4 @@
+
 if GetConfig("rain") then
     -- Interiors issue - Hurricane Storm Fix
     AddComponentPostInit("seasonmanager", function(self)
@@ -150,26 +151,65 @@ end)
 
 ------------------------------------------------------------------------------------
 
--- Add aditional herd limit for Spider Monkeys
-AddPrefabPostInit("spider_monkey_herd", function(inst_init)
-    inst_init.components.periodicspawner:SetSpawnTestFn( function(inst)
-        if not inst.components.herd then
-            return false
-        end
+AddPrefabPostInit("spider_monkey_herd", function(inst)
+    -- Add aditional herd limit for Spider Monkeys
+    inst.components.periodicspawner:SetSpawnTestFn(
+        function(inst)
+            if not (inst.components.herd and not inst.components.herd:IsFull()) then
+                return false
+            end
 
-        if inst.components.herd:IsFull() then
-            return false
-        end
+            local x,y,z = inst.Transform:GetWorldPosition()
 
-        local x,y,z = inst.Transform:GetWorldPosition()
-        local ents = _G.TheSim:FindEntities(x,y,z, inst.components.herd.gatherrange, inst.components.herd.membertag and {inst.components.herd.membertag} or nil )
-        return #ents < TUNING.ROCKYHERD_MAX_IN_RANGE
-    end)
+            local ents = _G.TheSim:FindEntities(
+                x,y,z, 
+                inst.components.herd.gatherrange,
+                inst.components.herd.membertag and {inst.components.herd.membertag} or nil
+            )
+            return #ents < TUNING.ROCKYHERD_MAX_IN_RANGE
+        end
+    )
+
+    -- Find a new tree if the currently is removed.
+    local _RefreshHomeTreeFn = inst.RefreshHomeTreeFn
+    inst.RefreshHomeTreeFn = function(inst)
+        if inst.homeTree and not inst.homeTree:IsValid() then
+            inst.homeTree = nil
+        end
+        _RefreshHomeTreeFn(inst)
+    end
+
+    for periodic_task, _ in pairs(inst.pendingtasks) do
+        if periodic_task.period == 5 then
+            periodic_task.fn = inst.RefreshHomeTreeFn
+        end
+    end
+
+    -- Spidermonkeys will no longer switch of tree after load. Thanks to: Faintly Macabre.
+    inst.OnSave = function(inst, data)
+        if inst.homeTree and inst.homeTree:IsValid() then
+            data.homeTree = inst.homeTree.GUID
+            return {inst.homeTree.GUID}
+        end
+    end
+
+    inst.OnLoadPostPass = function(inst, ents, data)
+        if data and data.homeTree and ents[data.homeTree] then
+            inst.homeTree = ents[data.homeTree].entity
+            inst.homeTree.spiderMonkeyHerd = inst
+
+            for k, v in pairs(inst.components.herd.members) do
+                if inst.homeTree then
+                    k.components.knownlocations:RememberLocation("home", _G.Point(inst.homeTree.Transform:GetWorldPosition()), false)
+                end
+            end
+        end
+    end
 end)
 
 ------------------------------------------------------------------------------------
 
--- Fix missing crocodog tuning override in hamlet worlds.
+-- Fixes missing crocodog tuning override in hamlet worlds.
 require("tuning_override_sw").OVERRIDES["crocodog"] =
     {
         doit = 	function(difficulty)
@@ -218,3 +258,183 @@ AddPrefabPostInit("wheeler_tracker", function(inst)
         end
     )
 end)
+
+------------------------------------------------------------------------------------
+
+-- Now we can ressurect inside interiors properly.
+local function FixInteriorRessurect(inst)
+    local _doresurrect = inst.components.resurrector.doresurrect
+
+    inst.components.resurrector.doresurrect = function(inst, dude)
+        _doresurrect(inst, dude)
+        _G.GetPlayer():DoTaskInTime(0, function()
+            if _G.TheCamera.interior or inst.interior then
+                _G.GetPlayer().Transform:SetRotation(0)
+                local interiorSpawner = _G.GetWorld().components.interiorspawner
+                interiorSpawner:PlayTransition(_G.GetPlayer(), nil, inst.interior, inst)			
+            else		
+                _G.GetPlayer().Transform:SetRotation(inst.Transform:GetRotation())
+            end
+
+            if not inst.interior then
+                if _G.TheCamera.interior then
+                    local interiorSpawner = _G.GetWorld().components.interiorspawner
+                    interiorSpawner.exteriorCamera:SetDistance(12)
+                else
+                    _G.TheCamera:SetDistance(12)	
+                end
+            end
+        end)
+    end
+end
+
+AddPrefabPostInit("resurrectionstatue", FixInteriorRessurect)
+AddPrefabPostInit("lifeplant", FixInteriorRessurect)
+
+------------------------------------------------------------------------------------
+
+-- Adds generic missing fishing symbols for relic 4 and 5.
+local function RetriaveRelic(inst)
+    inst.components.sinkable.swapsymbol = "fish03"
+end
+
+AddPrefabPostInit("relic_4", RetriaveRelic)
+AddPrefabPostInit("relic_5", RetriaveRelic)
+
+------------------------------------------------------------------------------------
+
+-- Fixes a crash with burnt cook pots and smelters in interiors. Made by: Faintly Macabre.
+local function FixCookPots(inst, component)
+    local comp = component or "stewer"
+
+    inst.returntointeriorscene = function (inst)
+        if inst.components[comp] and inst.components[comp].cooking then
+            inst.Light:Enable(true)
+        else
+            inst.Light:Enable(false)
+        end
+    end
+end
+
+AddPrefabPostInit("cookpot", FixCookPots)
+AddPrefabPostInit("portablecookpot", FixCookPots)
+AddPrefabPostInit("smelter", function(inst) FixCookPots(inst, "melter") end)
+
+------------------------------------------------------------------------------------
+
+local clawpalmtree_sufixs = {"", "_normal", "_tall", "_short"}
+
+-- Removes the spawn of creatures when claw trees are ignited. 
+-- This behavior is caused by a wrong copy of the rain forest trees file.
+-- Made by: Faintly Macabre.
+
+for _, sufix in ipairs(clawpalmtree_sufixs) do
+    AddPrefabPostInit("clawpalmtree"..sufix, function(inst)
+        inst.components.burnable.onignite = nil
+
+        local _OnEntityWake = inst.OnEntityWake
+
+        inst.OnEntityWake = function(inst)
+            _OnEntityWake(inst)
+            if inst.components.burnable then
+                inst.components.burnable.onignite = nil
+            end
+        end
+    end)
+end
+
+------------------------------------------------------------------------------------
+
+-- Nettles's pickable component alredy save the time to produce.
+-- Thanks to: Faintly Macabre.
+AddPrefabPostInit("nettle", function(inst)
+    inst.OnLoadPostPass = nil
+    inst.OnSave = nil
+    inst.OnLoad = nil
+
+    -- Revert the Pause() call.
+    inst.components.pickable.pause_time = 0
+	inst.components.pickable.paused = false
+end)
+
+------------------------------------------------------------------------------------
+
+-- Hides the snow layer from Shanty Shanty placer.
+AddPrefabPostInit("playerhouse_city_placer", function(inst)
+    inst.AnimState:Hide("snow")
+end)
+
+------------------------------------------------------------------------------------
+
+-- Fix a incorrect lawnornament_6's position.
+local setpeice = require("map/static_layouts/city_park_2")
+setpeice.layers[2].objects[11].x = 128
+
+------------------------------------------------------------------------------------
+
+local tubertree_sufixs = {"", "_tall", "_short", "_burnt", "_stump"}
+
+-- Fixes a lot of irregularities in tuber trees. Thanks to: Faintly Macabre.
+for _, sufix in pairs(tubertree_sufixs) do
+    AddPrefabPostInit("tubertree"..sufix, function(inst)
+        if sufix == "_stump" then
+            inst:RemoveComponent("hackable")
+        end
+
+        local hackable = inst.components.hackable
+        
+        local _onregenfn = hackable.onregenfn
+        local _onhackedfn = hackable.onhackedfn
+        local _OnLoad = inst.OnLoad
+        local _startbloom = inst.components.bloomable.bloomfunction
+        
+        hackable:SetOnRegenFn(function(inst)
+            if not inst:hasTag("burnt") then
+                _onregenfn(inst)
+            end
+        end)
+
+        if not inst:HasTag("burnt") and not inst:HasTag("stump") then
+            hackable.onhackedfn = function(inst)
+                _onhackedfn(inst)
+                if math.random() > .5 then
+                    inst.AnimState:PushAnimation(inst.anims.sway1, true)
+                else
+                    inst.AnimState:PushAnimation(inst.anims.sway2, true)
+                end
+            end
+        end
+
+        inst.OnLoad = function (inst, data)
+            if not data then return end
+
+            _OnLoad(inst, data)
+
+            if not data.burnt then
+                if data.stump then
+                    inst:RemoveComponent("hackable")
+                else
+                    inst:RemoveTag("stump")
+                    hackable.canbehacked = true
+                    hackable.hasbeenhacked = false
+                end
+            end
+
+            if not data.stump then
+                for i, slot in ipairs(inst.tuberslots) do
+                    inst.AnimState:Hide("tubers"..slot)
+                end
+
+                for i=1, inst.tubers do
+                    inst.AnimState:Show("tubers"..inst.tuberslots[i])
+                end
+            end
+        end
+
+        inst.components.bloomable:SetStartBloomFn(function(inst)
+            if hackable and not inst:HasTag("burnt") then
+                _startbloom(inst)
+            end
+        end)
+    end)
+end

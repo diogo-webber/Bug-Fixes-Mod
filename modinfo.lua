@@ -1,7 +1,7 @@
 name = "Bug Fixes"
 author = "Leonidas IV"
 
-version = "1.9.1"
+version = "1.10"
 
 api_version = 6
 forumthread = ""

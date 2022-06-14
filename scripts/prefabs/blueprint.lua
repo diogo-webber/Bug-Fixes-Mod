@@ -1,3 +1,6 @@
+
+-- Replace the file to remove uncraftable items's blueprints.
+
 require "recipes"
 
 local assets =

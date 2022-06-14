@@ -1,9 +1,27 @@
 
 Added:
 
-- Fixed ambient sound from higher DLCs in lower DLCs. For example: turfs from HAM will have their sounds when placed in SW. (SW+)
-- Mobs attacks on Fish Farms are no longer removed after save-load (SW+).
-- Fish farm sign no longer overlaps the boat (SW+).
-- Properly removes special character speed modifiers at World Reset. Also cures poison (SW+).
-- Fixed Boat Knight and Palm Guard ranged attack from causing a fake hurt sound (SW+).
-- Weather Pain's tornado will no longer "deflect" spider webs.
+- Adds missing Beebox inspection lines for different states.
+Made by: alainmcd and piratekingflcl.
+- Wee Mactusk now drop your loot correctly.
+- Fixes a Weater Pain crash, when used in sunken relics and others objects (RoG+).
+- Fixes Deciduous and Tea Tree Stumps not being burnable after derendering (RoG+, HAM+).
+- Fixes "ghost" carry arm in Werewilba form after some animations (HAM+).
+- Fixes a rare bug where the light of Pigs and Wildbores houses stays on during the day (SW+).
+- The meteor marks will no longer go over dropped items (SW+).
+- Fixes the issue of "ghost" ice and hail, not being able to be picked up.
+- Restores the texture of the ice, no longer looking like hail (SW+).
+- Fixes a problem with Relics being stuck in inventory after loading in SW (HAM+).
+- Some staffs can now cast on land when the player in water (SW+).
+- Packim Baggims will no longer attack monster characters, like Webber (SW+).
+- Resurrecting inside interiors, when died in another world, will no longer cause bizarre bugs (HAM+).
+- Spidermonkeys will no longer switch of tree after load (HAM).
+- Adds a generic texture for missing retriave symbol on sunken special relics (HAM+).
+- Fixes a crash with burnt cook pots and smelters in interiors (HAM+).
+- Removes the spawn of creatures when claw trees are ignited. 
+This behavior is caused by a incorrect copy  paste of the rain forest trees file (HAM+).
+- Fixes load issues with nettle plants production time (HAM+).
+- Hides the snow layer from Shanty Shanty placer (HAM+).
+- Corrects the position of one of the Lawn Decorations in a setpiece present in cities (HAM).
+- Fixes a lot of irregularities in tuber trees (HAM).
+- Fixes a Navigadget crash related to Wee Mactusk (HAM+).

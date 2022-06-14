@@ -1,3 +1,6 @@
+
+-- Replace the brain because AddBrainPostInit is hell.
+
 require "behaviours/wander"
 require "behaviours/runaway"
 require "behaviours/doaction"

@@ -1,5 +1,6 @@
 -- Spice Pack will not be invisible when the player isn't Warly.
 table.insert(Assets, Asset("ANIM", "anim/swap_chefpack.zip"))
+table.insert(Assets, Asset("ANIM", "anim/normal_ice.zip"))
 
 ------------------------------------------------------------------------------------
 
@@ -22,7 +23,7 @@ end
 
 ------------------------------------------------------------------------------------
 
--- Wilbore in water fix
+-- Wilbore in water fix.
 AddPrefabPostInit("wildbore", function(inst)
     inst:DoPeriodicTask(TUNING.TOTAL_DAY_TIME, function(inst)
         if inst and inst.Transform and _G.GetWorld() and _G.GetMap() then
@@ -96,22 +97,6 @@ if GetConfig("bee") then
     AddPrefabPostInit("killerbee", FlyOverWater)
     AddPrefabPostInit("butterfly", FlyOverWater)
     AddPrefabPostInit("glowfly", FlyOverWater)
-end
-
-------------------------------------------------------------------------------------
--- Obsidian Equips load fix
-local _oldMakeObsidianTool = _G.MakeObsidianTool
-_G.MakeObsidianTool = function(inst, tooltype)
-    _oldMakeObsidianTool(inst, tooltype)
-
-    if inst.components.floatable then
-        inst.components.floatable:SetOnHitWaterFn(function(inst)
-            if _G.InGamePlay() then
-                inst.SoundEmitter:PlaySound("dontstarve_DLC002/common/obsidian_wetsizzles")
-                inst.components.obsidiantool:SetCharge(0)
-            end
-        end)
-    end
 end
 
 ------------------------------------------------------------------------------------
@@ -212,10 +197,10 @@ local function GetSpawnPoint(pt)
     local theta = math.random() * 2 * _G.PI
     local radius = 30
 
-	local offset = _G.FindWalkableOffset(pt, theta, radius, 12, true)
-	if offset then
-		return pt+offset
-	end
+    local offset = _G.FindWalkableOffset(pt, theta, radius, 12, true)
+    if offset then
+        return pt+offset
+    end
 end
 
 local function SpawnPackim(inst) -- Local function and I can't get with UpvalueHacker :(
@@ -288,7 +273,6 @@ end)
 
 local function CommonFishFix(inst)
     inst.components.floatable:UpdateAnimations(nil, "idle")
-                                                                    -- (water, land) anims
     inst.OnLoad = function() inst.components.floatable:UpdateAnimations(nil, "dead") end
 
     inst.components.inventoryitem:SetOnPickupFn(
@@ -320,7 +304,7 @@ end
 
 ------------------------------------------------------------------------------------
 
--- Fix made by Island's Adventure Mod Team <3
+-- Thanks to: Island's Adventure Mod Team <3
 -- Sealnado will no longer ignore the player when they are close to him.
 AddBrainPostInit("twisterbrain", function(brain)
     local inst = brain.inst
@@ -369,7 +353,7 @@ local SGwilson = require("stategraphs/SGwilson")
 -- Add the bundling states to boating + hacky to show the boat with the anim (bundling anim don't have boat symbol)
 AddStategraphPostInit("wilsonboating", function(self)
     for i, state in ipairs({"bundle", "bundling", "bundle_pst"}) do
-	    self.states[state] = SGwilson.states[state]
+        self.states[state] = SGwilson.states[state]
         table.insert(self.states[state].tags, "boating")
 
         if GetConfig("bundle_fx") then -- Don't need this for build anim
@@ -419,7 +403,7 @@ end)
 
 -- Inspired by skittles sour's mod: https://steamcommunity.com/sharedfiles/filedetails/?id=2635513673
 AddPlayerPostInit(function(inst)
-	inst:DoTaskInTime(0, function()
+    inst:DoTaskInTime(0, function()
         if not _G.GetWorld():IsVolcano() then return end
         
         -- Fix Boat speed multipliers when climb volcano.
@@ -431,17 +415,25 @@ end)
 
 ------------------------------------------------------------------------------------
 
--- Coconut being cutted in inventory by weather pain + ajust in work action
+local WORK_ACTIONS = {
+    _G.ACTIONS.CHOP,
+    _G.ACTIONS.DIG,
+    _G.ACTIONS.HAMMER,
+    _G.ACTIONS.MINE,
+}
+
+-- Fix Coconut being cutted in inventory by weather pain
+-- and a crash with sinkables + ajust in work rate
 AddStategraphPostInit("tornado", function(self)
+
     local function destroystuff(inst)
         local x, y, z = inst.Transform:GetWorldPosition()
         local ents = _G.TheSim:FindEntities(x, y, z, 3, nil, {"INLIMBO"}) -- Inlimbo = in inventory
         for i, v in ipairs(ents) do
             if v ~= inst.WINDSTAFF_CASTER and v:IsValid() then
                 if v.components.health ~= nil and
-                    not v.components.health:IsDead() and
-                    v.components.combat ~= nil then
-
+                not v.components.health:IsDead() and
+                v.components.combat ~= nil then
                     v.components.combat:GetAttacked(inst, TUNING.TORNADO_DAMAGE)
                     if v:IsValid() and
                         inst.WINDSTAFF_CASTER ~= nil and inst.WINDSTAFF_CASTER:IsValid() and
@@ -452,8 +444,10 @@ AddStategraphPostInit("tornado", function(self)
                             v.components.follower:GetLeader() == inst.WINDSTAFF_CASTER) then
                         v.components.combat:SuggestTarget(inst.WINDSTAFF_CASTER)
                     end
+
                 elseif v.components.workable ~= nil and
-                    v.components.workable.workleft > 0 then
+                v.components.workable.workleft > 0 and
+                table.contains(WORK_ACTIONS, v.components.workable:GetWorkAction()) then
                     _G.SpawnPrefab("collapse_small").Transform:SetPosition(v.Transform:GetWorldPosition())
                     v.components.workable:WorkedBy(inst, 2)
                 end
@@ -471,10 +465,7 @@ AddStategraphPostInit("tornado", function(self)
     UpvalueHacker.SetUpvalue(self.states["walk"].onenter, destroystuff, "destroystuff")
 
     for i, state in pairs({"walk", "run_start", "run", "run_stop"}) do
-        self.states[state].timeline =
-        {
-            TimeEvent(5*FRAMES, destroystuff),
-        }
+        self.states[state].timeline = { TimeEvent(5*FRAMES, destroystuff) }
     end
 end)
 
@@ -584,7 +575,7 @@ end
 -- Fix Fish Farm's Sign over the boat.
 AddPrefabPostInit("fish_farm_sign", function(inst)
     inst.AnimState:SetLayer(_G.LAYER_BACKGROUND)
-	inst.AnimState:SetSortOrder(3)
+    inst.AnimState:SetSortOrder(3)
 end)
 
 ------------------------------------------------------------------------------------
@@ -641,3 +632,73 @@ AddStategraphPostInit("knightboat", function(self)
     }
 end)
 
+------------------------------------------------------------------------------------
+
+-- Fix little glitch with meteor ground fx.
+AddPrefabPostInit("meteor_impact", function(inst)
+    inst.AnimState:SetLayer(_G.LAYER_BACKGROUND)
+    inst.AnimState:SetSortOrder(3)
+end)
+
+------------------------------------------------------------------------------------
+
+-- Fix "ghost" hail/ice caused by save-exiting when it's disappearing.
+local function FixIce(inst)
+    local _OnLoad = inst.OnLoad
+    inst.OnLoad = function(inst, data)
+        _OnLoad(inst, data)
+        if not inst.components.inventoryitem.canbepickedup then
+            inst:Remove()
+        end
+    end
+end
+
+AddPrefabPostInit("hail_ice", FixIce)
+
+-- Gives Ice your texture again. Fuck you hail texture.
+AddPrefabPostInit("ice", function(inst)
+    FixIce(inst)
+    inst.AnimState:SetBuild("normal_ice")
+    inst.AnimState:SetBank("normal_ice")
+end)
+
+------------------------------------------------------------------------------------
+
+-- Fix for many load bugs, including: Obsidian equips charge lost and relics stuck in inventory.
+-- Original OnLoad check if the item is on water, but all items spawn at 0,0,0 (possible water)
+-- before going to inventory. So shitty things happens.
+
+AddComponentPostInit("floatable", function(self)
+    function self:OnLoad(data)
+        if data and data.onwater then
+            self:OnHitWater(true)
+        else 
+            self:OnHitLand(true)
+        end
+    end 
+end)
+
+AddComponentPostInit("inventoryitem", function(self)
+    local _OnPutInInventory = self.OnPutInInventory
+    function self:OnPutInInventory(...)
+        _OnPutInInventory(self, ...)
+        if self.inst.components.floatable then
+            self.inst.components.floatable.onwater = false
+            self.inst:RemoveTag("aquatic")
+        end
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Some Staffs can now cast on land when the player in the ocean.
+_G.ACTIONS.CASTSPELL.crosseswaterboundary = true
+
+------------------------------------------------------------------------------------
+
+-- Stop packim from attacking Webber :(
+AddPrefabPostInit("packim", function(inst)
+    inst.components.combat.notags = {"player"}
+end)
+
+    

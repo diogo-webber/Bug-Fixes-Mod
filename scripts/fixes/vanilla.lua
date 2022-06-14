@@ -10,13 +10,11 @@ Assets = {
 
 ------------------------------------------------------------------------------------
 
--- Teleblella effects for everybody + Bundle Fx
-for _, prefab in pairs(CHARACTERLIST) do
-    AddPrefabPostInit(prefab, function(inst)
-        inst.AnimState:AddOverrideBuild("player_wagstaff")
-        inst.AnimState:AddOverrideBuild("player_wrap_bundle")
-    end)
-end
+-- Teleblella effects + Bundle Fx for everybody.
+AddPlayerPostInit(function(inst)
+    inst.AnimState:AddOverrideBuild("player_wagstaff")
+    inst.AnimState:AddOverrideBuild("player_wrap_bundle")
+end)
 
 ------------------------------------------------------------------------------------
 
@@ -53,19 +51,19 @@ local SlotDetailsScreen = _G.require("screens/slotdetailsscreen")
 local function FixedOnControl(self, control, down)
     if SlotDetailsScreen._base.OnControl(self, control, down) then return true end
 
-	if control == _G.CONTROL_CANCEL and not down then
-		_G.EnableAllDLC()
-		_G.TheFrontEnd:PopScreen(self)
-		return true
-	end
+    if control == _G.CONTROL_CANCEL and not down then
+        _G.EnableAllDLC()
+        _G.TheFrontEnd:PopScreen(self)
+        return true
+    end
 end
 
 function LoadGameScreen:OnControl(control, down)
-	return FixedOnControl(self, control, down)
+    return FixedOnControl(self, control, down)
 end
 
 function SlotDetailsScreen:OnControl( control, down )
-	return FixedOnControl(self, control, down)
+    return FixedOnControl(self, control, down)
 end
 
 ------------------------------------------------------------------------------------
@@ -116,7 +114,7 @@ local function spawnfx()
     inst:AddTag("FX")
     inst:AddTag("NOCLICK")
 
-	inst:ListenForEvent("animover", inst.Remove)
+    inst:ListenForEvent("animover", inst.Remove)
     inst.persists = false
 
     return inst
@@ -420,6 +418,7 @@ AddComponentPostInit("equippable", function(self)
         if self.onequipfn then
             owner:DoTaskInTime(3*FRAMES, function()
                 self.onequipfn(self.inst, owner, self.swapbuildoverride or nil)
+                self.inst:PushEvent("equipped", {owner=owner, slot=slot}) -- For work with the skins mod.
             end)
         end
     end
@@ -434,10 +433,10 @@ end)
 
 ------------------------------------------------------------------------------------
 
--- TODO: Soon
---[[local function SkeletonTweak(inst)
+-- No more wood sound :)
+local function SkeletonTweak(inst)
     inst.components.workable:SetWorkLeft(3)
-	inst.components.workable:SetOnFinishCallback(function(inst)
+    inst.components.workable:SetOnFinishCallback(function(inst)
         inst.components.lootdropper:DropLoot()
         _G.SpawnPrefab("collapse_small").Transform:SetPosition(inst:GetPosition():Get())
         inst.SoundEmitter:PlaySound("dontstarve/wilson/rock_break")
@@ -447,40 +446,103 @@ end
 
 AddPrefabPostInit("skeleton", SkeletonTweak)
 AddPrefabPostInit("skeleton_player", SkeletonTweak)
-]]
+
 ------------------------------------------------------------------------------------
 
--- Wilson/Generic quotes. Oh, dear Klei...
-local GENERIC = STRINGS.CHARACTERS.GENERIC
-GENERIC.DESCRIBE.FENCE = "It's just a wood fence."
-GENERIC.DESCRIBE.FENCE_ITEM = "All I need to build a nice, sturdy fence."
-GENERIC.DESCRIBE.FENCE_GATE = "It opens. And closes sometimes, too."
-GENERIC.DESCRIBE.FENCE_GATE_ITEM = "All I need to build a nice, sturdy gate."
+-- Fixes missing Beebox inspection lines for different states.
+-- Made by: alainmcd and piratekingflcl [Mod Id - 952458573]
+AddPrefabPostInit("beebox", function(inst)
+    inst.components.inspectable.getstatus = function(inst)
+        if inst.components.harvestable and inst.components.harvestable:CanBeHarvested() then
+            if inst.components.harvestable.produce == inst.components.harvestable.maxproduce then
+                return "FULLHONEY"
+            elseif inst.components.childspawner and inst.components.childspawner:CountChildrenOutside() > 0 then
+                return "GENERIC"
+            else
+                return "SOMEHONEY"
+            end
+        end
+        return "NOHONEY"
+    end
+end)
 
-GENERIC.DESCRIBE.BUNDLE = "My supplies are in there!"
-GENERIC.DESCRIBE.BUNDLEWRAP = "Wrapping things up should make them easier to carry."
+------------------------------------------------------------------------------------
 
-GENERIC.DESCRIBE.BEEFALO.DOMESTICATED = "This one is slightly less smelly than the others."
-GENERIC.DESCRIBE.BEEFALO.ORNERY = "It looks deeply angry."
-GENERIC.DESCRIBE.BEEFALO.RIDER = "This fellow appears quite ridable."
-GENERIC.DESCRIBE.BEEFALO.PUDGY = "Hmmm, there may be too much food inside it."
-GENERIC.DESCRIBE.BEEFALO.MYPARTNER = "We're beef friends forever."
+-- Fix Wee Mactusk loot and a Navigadget Crash. Made by: Faintly Macabre.
+AddPrefabPostInit("little_walrus", function(inst)
+    _G.SetSharedLootTable('walrus_wee_loot', {{'meat', 1}})
+end)
 
-GENERIC.DESCRIBE.SADDLE_BASIC = "That'll allow the mounting of some smelly animal."
-GENERIC.DESCRIBE.SADDLE_RACE = "This saddle really flies!"
-GENERIC.DESCRIBE.SADDLE_WAR = "The only problem is the saddle sores."
-GENERIC.DESCRIBE.SADDLEHORN = "This could take a saddle off."
-GENERIC.DESCRIBE.SALTLICK = "How many licks does it take to get to the center?"
-GENERIC.DESCRIBE.BRUSH = "I bet the beefalo really like this."
+------------------------------------------------------------------------------------
 
-GENERIC.DESCRIBE.FEATHERPENCIL = "The feather increases the scientific properties of the writing."
+if hasRoG then
+    local function FixStump(inst)
+        local _OnEntityWake = inst.OnEntityWake
 
-GENERIC.DESCRIBE.MINISIGN_ITEM = "It's not much use like this. I should place it."
-GENERIC.DESCRIBE.MINISIGN = {
-    GENERIC = "I could draw better than that!",
-    UNDRAWN = "I should draw something on there.",
-}
+        inst.OnEntityWake = function(inst)
+            _OnEntityWake(inst)
+            if not inst:HasTag("burnt") and not inst:HasTag("fire") and inst:HasTag("stump") then
+                inst:RemoveComponent("burnable")
+                _G.MakeSmallBurnable(inst)
+                inst:RemoveComponent("propagator")
+                _G.MakeSmallPropagator(inst)
+            end
+        end
+    end
 
-GENERIC.ACTIONFAIL.WRAPBUNDLE = {
-    EMPTY = "I need to have something to wrap.",
-}
+    local prefabs_sufixs = {"", "_normal", "_tall", "_short", "_piko_nest"}
+    
+    for _, type in ipairs(prefabs_sufixs) do
+
+        -- Fixes Deciduous Tree and Tea Tree Stumps not being burnable after derendering.
+        -- Made by: Faintly Macabre.
+        AddPrefabPostInit("deciduoustree"..type, FixStump)
+        AddPrefabPostInit("teatree"..type, FixStump)
+    end
+end
+
+------------------------------------------------------------------------------------
+
+if hasHAM then  -- This shit refuses to run in the hamlet file.
+    local states = {"play_flute", "play_horn", "play_bell", "use_fan", "map", "toolbroke"}
+    
+    -- Fixes ghost carry arm for Wilba in Werewilba form.
+    AddStategraphPostInit("wilson", function(self)
+        for _, state in ipairs(states) do
+            local _onexit = self.states[state].onexit
+
+            self.states[state].onexit = function(inst)
+                _onexit(inst)
+                if inst.were then
+                    inst.AnimState:Hide("ARM_carry") 
+                    inst.AnimState:Show("ARM_normal")
+                end
+            end
+        end
+    end)
+end
+
+------------------------------------------------------------------------------------
+
+local function FixLightOnDay(inst)
+    local _onfar = inst.components.playerprox.onfar
+    inst.components.playerprox:SetOnPlayerFar(function(inst)
+        if not _G.GetClock():IsDay() then
+            _onfar(inst)
+        end
+    end)
+end
+
+-- Fix for a rare bug where the light stays on during the day.
+AddPrefabPostInit("pighouse", FixLightOnDay)
+AddPrefabPostInit("wildborehouse", FixLightOnDay)
+
+------------------------------------------------------------------------------------
+
+-- Fixes the misspelled "burnt" tag check.
+AddComponentPostInit("homeseeker", function(self)
+    local _HasHome = self.HasHome
+    function self:HasHome()
+        return _HasHome(self) and not self.home:HasTag("burnt")
+    end
+end)
