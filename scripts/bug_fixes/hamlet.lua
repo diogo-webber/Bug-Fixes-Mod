@@ -149,6 +149,13 @@ AddPrefabPostInit("trusty_shooter", function(inst)
     inst.components.trader:SetAcceptTest(CanTakeAmmo)
 end)
 
+-- Trusty_shooter will aceppt everything in the Load Prompt.
+AddPrefabPostInitAny(function(inst)
+    if inst.components and inst.components.inventoryitem and not inst.components.tradable then
+        inst:AddComponent("tradable")
+    end
+end)
+
 ------------------------------------------------------------------------------------
 
 AddPrefabPostInit("spider_monkey_herd", function(inst)
@@ -238,12 +245,10 @@ end)
 ------------------------------------------------------------------------------------
 
 -- Fix a incoerrent shadow in grabbing_vine idle.
-AddStategraphPostInit("grabbing_vine", function(self)
-    local _onenter = self.states["idle_up"].onenter
-    self.states["idle_up"].onenter = function(inst)
-        _onenter(inst)
-        inst.shadowoff(inst)
-    end
+AddStategraphPostInit("grabbing_vine", function(sg)
+    HookSG_StatePost(sg, "idle_up", "onenter", function(inst, arg)
+        inst:shadowoff()
+    end)
 end)
 
 ------------------------------------------------------------------------------------
@@ -387,9 +392,10 @@ for _, sufix in pairs(tubertree_sufixs) do
         local _onhackedfn = hackable.onhackedfn
         local _OnLoad = inst.OnLoad
         local _startbloom = inst.components.bloomable.bloomfunction
-        
+        local _DropLootPrefab = inst.components.lootdropper.DropLootPrefab
+
         hackable:SetOnRegenFn(function(inst)
-            if not inst:hasTag("burnt") then
+            if not inst:HasTag("burnt") then
                 _onregenfn(inst)
             end
         end)
@@ -409,6 +415,11 @@ for _, sufix in pairs(tubertree_sufixs) do
             if not data then return end
 
             _OnLoad(inst, data)
+            
+            -- Fixes a weird situation where tubers > maxtubers [Crash].
+            if data.tubers then
+                inst.tubers = math.min(data.tubers, inst.maxtubers)
+            end
 
             if not data.burnt then
                 if data.stump then
@@ -436,5 +447,264 @@ for _, sufix in pairs(tubertree_sufixs) do
                 _startbloom(inst)
             end
         end)
+        
+        -- Give the loot the same colour of the tree.
+        function inst.components.lootdropper:DropLootPrefab(...)
+            local loot =_DropLootPrefab(self, ...)
+
+            if self.inst.AnimState and loot.AnimState then
+                loot.AnimState:SetMultColour(self.inst.AnimState:GetMultColour())
+            end
+
+            return loot
+        end
     end)
 end
+
+------------------------------------------------------------------------------------
+
+if GetConfig("pigfixer") then
+    local function spawnFixer(inst, old_fn)
+        local x,y,z = inst.Transform:GetWorldPosition()
+        local fixers = _G.TheSim:FindEntities(x,y,z, 30, {"fixer"})
+        local pigs = _G.TheSim:FindEntities(x,y,z, 40, {"city_pig"})
+
+        -- Only spawn the mechanic pig if the entity is in a "city".
+        if #fixers > 0 or #pigs >= 5 then 
+            old_fn(inst) -- Pig alredy exist, go fix it!
+        end
+
+        -- if _spawnFixer create the task, re-create its with the new timer.
+        if inst.task then
+            -- From ~10-12 seconds to 30-60 seconds.
+            local new_delay = TUNING.SEG_TIME + (math.random() * TUNING.SEG_TIME)
+
+            if #fixers > 0 then -- Pig alredy exist, go fix it!
+                new_delay = 10
+            end
+
+            inst.task:Cancel()
+            inst.task = nil
+            inst.task = inst:DoTaskInTime(new_delay, function() spawnFixer(inst, old_fn) end)
+        end
+    end
+end
+
+AddPrefabPostInit("reconstruction_project", function(inst)
+    -- Can be breaked by city hammer:
+    --inst:AddTag("fixable") --TODO
+
+    if GetConfig("pigfixer") then
+        local _spawnFixer = inst.task.fn
+
+        inst.task:Cancel()
+        inst.task = nil
+        inst.task = inst:DoTaskInTime(5, function() spawnFixer(inst, _spawnFixer) end)
+    end
+
+    -- reconstruction_project have his own quotes.
+    inst:DoTaskInTime(0.3, function()
+        inst.nameoverride = nil
+    end)
+
+    -- Fixes the missing name after load and add a sufix.
+    inst.displaynamefn = function(inst)
+        local name = inst.construction_prefab:find("topiary") and "topiary" or inst.construction_prefab
+        local prefix = inst.reconstruction_stages[1].anim == "burnt" and "Burnt " or "Broken "
+        return prefix .. STRINGS.NAMES[string.upper(name)]
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+local function ReworkPlantStruture(inst)
+    if not GetConfig("cityplants") then return end
+    
+    local _onwork = inst.components.workable.onwork
+    inst.components.workable:SetOnWorkCallback(function(inst, worker)
+        local fx = _G.SpawnPrefab("robot_leaf_fx")
+        local x, y, z= inst.Transform:GetWorldPosition()
+        fx.Transform:SetPosition(x, y + math.random()*0.5, z)
+                
+        inst.SoundEmitter:PlaySound("dontstarve_DLC002/common/vine_hack")
+    
+        _onwork(inst, worker)
+    end)
+
+    local _onfinish = inst.components.workable.onfinish
+    inst.components.workable:SetOnFinishCallback(function(inst, worker)
+        local x, y, z = inst.Transform:GetWorldPosition()
+        for i=1,math.random(3,4) do
+            local fx = _G.SpawnPrefab("robot_leaf_fx")
+            fx.Transform:SetPosition(x + (math.random()*2) , y+math.random()*0.5, z + (math.random()*2))
+            if math.random() < 0.5 then
+                fx.Transform:SetScale(-1,1,-1)
+            end
+        end
+        inst.SoundEmitter:PlaySound("dontstarve/common/destroy_straw")
+        inst.SoundEmitter:OverrideVolumeMultiplier(0)
+        _onfinish(inst, worker)
+        inst.SoundEmitter:OverrideVolumeMultiplier(1)
+    end)
+end
+
+for n=1, 7 do
+    -- Each Lawnornament have his own name. Also add some fx.
+    AddPrefabPostInit("lawnornament_"..n, function(inst)
+        inst.nameoverride = nil
+        inst.components.inspectable.nameoverride = "lawnornament"
+        if n ~= 7 then
+            ReworkPlantStruture(inst)
+        end
+    end)
+end
+
+for n=1, 4 do
+    -- Fix missing name for broken/burnt topyaries, make them burnable and add some fx.
+    AddPrefabPostInit("topiary_"..n, function(inst)
+        inst.components.fixable:SetPrefabName("topiary")
+
+        if n == 3 or n == 4 then
+            _G.MakeLargeBurnable(inst, nil, nil, true)
+        else
+            _G.MakeMediumBurnable(inst, nil, nil, true)
+        end
+
+        inst:ListenForEvent("burntup", inst.Remove)
+
+        ReworkPlantStruture(inst)
+    end)
+end
+
+------------------------------------------------------------------------------------
+
+-- Make Hedges burnable.
+for _, sufix in ipairs({"layered", "block", "cone"}) do
+    AddPrefabPostInit("hedge_"..sufix, function(inst)
+        _G.MakeMediumBurnable(inst, nil, nil, true)
+        inst:ListenForEvent("burntup", inst.Remove)
+    end)
+end
+
+------------------------------------------------------------------------------------
+
+-- Dry the player at end.
+AddPrefabPostInit("living_artifact", function(inst)
+    local _Revert = inst.Revert
+    inst.Revert = function(inst)
+        _Revert(inst)
+
+        local player = _G.GetPlayer()
+        if player.components.moisture then
+            player.components.moisture.moisture = 0
+        end
+
+        if player.components.temperature then
+            player.components.temperature:SetTemperature(TUNING.STARTING_TEMP)
+        end
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+local doors = {
+    "wood",
+    "stone",
+    "organic",
+    "iron",
+    "pillar",
+    "curtain",
+    "round",
+    "plate"
+}
+
+for _, door in pairs(doors) do
+    -- Fixes a wrong funtion name on doors.
+    AddPrefabPostInit(door.."_door", function(inst)
+        inst.components.workable.canbeworkedby = inst.components.workable.canbeworkedbyfn
+    end)
+end
+
+------------------------------------------------------------------------------------
+
+-- Fixes mouse over effect missing in childrens for Aporkalypse Calendar.
+AddPrefabPostInit("aporkalypse_clock1", function(inst)
+    inst:DoTaskInTime(.1, function()
+        inst.highlightchildren = {inst.parent}
+
+        for ent, _ in pairs(inst.parent.children) do
+            if not ent.prefab:find("plate") then
+                table.insert(inst.highlightchildren, ent)
+            end
+        end
+    end)
+end)
+
+------------------------------------------------------------------------------------
+
+local ignored_prefabs = {"pig_ruins_spear_trap", "leif", "mangrovetree", "treeguard"}
+
+-- Add the possibility for mysteries in all trees, stalagmites and Magma Piles.
+AddPrefabPostInitAny(function(inst)
+    if inst:HasTag("tree") and inst.prefab and (inst.components and not inst.components.mystery) then
+        for _, prefab in pairs(ignored_prefabs) do
+            if inst.prefab:find(prefab) then
+                return
+            end
+        end
+        
+        inst:AddComponent("mystery")
+    end
+
+end)
+
+local stages = {"", "_low", "_med", "_full"}
+
+for _, pile in ipairs({"magmarock", "magmarock_gold", "stalagmite", "stalagmite_tall"}) do
+    for _, stage in ipairs(stages) do
+        AddPrefabPostInit(pile..stage, function(inst)
+            inst:AddComponent("mystery")
+        end)
+    end
+end
+
+-- Fixes the duplicate loot... Klei and her code...
+AddComponentPostInit("mystery", function(self)
+    function self:AddReward(reward)
+        local color = 0.5 + math.random() * 0.5
+        self.inst.AnimState:SetMultColour(color-0.15, color-0.15, color, 1)
+    
+        self.inst:AddTag("mystery")
+        self.reward = reward or self:GenerateReward()
+    
+        self.inst:ListenForEvent("onremove", function()
+            if self.inst:HasTag("mystery") and self.inst.components.mystery.investigated then
+                self.inst:RemoveTag("mystery")
+                self.inst.components.lootdropper:SpawnLootPrefab(self.reward)
+            end
+        end)
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Apply the special gas mask voice.
+AddPrefabPostInit("gasmaskhat", function(inst)
+    inst:AddTag("muffler")
+end)
+
+------------------------------------------------------------------------------------
+
+local function RocStatesMounted(sg, state)
+    HookSG_EventHandler(sg, state, function(inst, data, _old)
+        if not _G.GetPlayer().components.rider:IsRiding() then
+            _old(inst, data)
+        end
+    end)
+end
+
+-- BFB cann't grab the player if mounted.
+AddStategraphPostInit("roc_head", function(sg)
+    RocStatesMounted(sg,"gobble")
+    RocStatesMounted(sg, "bash")
+end)

@@ -11,17 +11,21 @@ env.GetConfig = GetModConfigData
 
 env.require = _G.require
 env.UpvalueHacker = require("upvaluehacker") -- Tool designed by Rezecib. <3
+modimport("scripts/utils.lua") -- Some functions
 
 env.hasHAM = _G.IsDLCEnabled(3)
 env.hasSW = _G.IsDLCEnabled(2) or hasHAM
 env.hasRoG = _G.IsDLCEnabled(1) or hasSW or hasHAM
 
-modimport("scripts/fixes/vanilla.lua")
+local fixes_folder = "scripts/bug_fixes/"
+
+modimport(fixes_folder.."vanilla.lua")
 
 if hasSW then
-    modimport("scripts/fixes/shipwecked.lua")
+    modimport(fixes_folder.."shipwecked.lua")
 end
 
 if hasHAM then
-    modimport("scripts/fixes/hamlet.lua")
+    modimport(fixes_folder.."hamlet.lua")
 end
+

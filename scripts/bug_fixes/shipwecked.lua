@@ -173,15 +173,12 @@ end
 ------------------------------------------------------------------------------------
 
 AddStategraphPostInit("wilsonboating", function(self)
-    local _onenter = self.states["use_fan"].onenter
-    self.states["use_fan"].onenter = function(inst) -- Fix Doydoy Fan Texture on boat
-        _onenter(inst)
-
+    HookSG_StatePost(self, "use_fan", "onenter", function(inst, arg)
         local fan = inst:GetBufferedAction().invobject
-        if fan then
+        if fan then -- Fix Doydoy Fan Texture on boat
             inst.AnimState:OverrideSymbol("fan01", fan.animinfo, "fan01")
         end
-    end
+    end)
 
     self.states["use_fan"].timeline = -- Fix Fans missing sound on boat
         {   
@@ -351,42 +348,32 @@ AddStategraphActionHandler("wilsonboating", _G.ActionHandler(_G.ACTIONS.BUNDLE, 
 local SGwilson = require("stategraphs/SGwilson")
 
 -- Add the bundling states to boating + hacky to show the boat with the anim (bundling anim don't have boat symbol)
-AddStategraphPostInit("wilsonboating", function(self)
+AddStategraphPostInit("wilsonboating", function(sg)
     for i, state in ipairs({"bundle", "bundling", "bundle_pst"}) do
-        self.states[state] = SGwilson.states[state]
-        table.insert(self.states[state].tags, "boating")
+
+        sg.states[state] = _G.deepcopy(SGwilson.states[state])
+        AddTagToState(sg, state, "boating")
 
         if GetConfig("bundle_fx") then -- Don't need this for build anim
-            local onenter = self.states[state].onenter
-            local onexit = self.states[state].onexit
-
-            self.states[state].onenter = function(inst, timeout)
-                onenter(inst, timeout)
+            local function ShowBoat(inst, arg)
                 local vehicle = inst.components.driver.vehicle
-                if vehicle then
-                    vehicle:Show()
-                end
+                return vehicle and vehicle:Show()
             end
 
-            self.states[state].onexit = function(inst)
-                onexit(inst)
+            local function HideBoat(inst, arg)
                 local vehicle = inst.components.driver.vehicle
-                if vehicle then
-                    vehicle:Hide()
-                end
+                return vehicle and vehicle:Hide()
             end
+
+            HookSG_StatePost(sg, state, "onenter", ShowBoat)
+            HookSG_StatePost(sg, state, "onexit",  HideBoat)
         end
     end
 
     ------------------------------------------------------------------------------------
 
     -- Fix invisible boat on telebrella teleport
-    local telebrella_state = self.states["telebrella"]
-
-    local onenter_telebrella = telebrella_state.onenter
-
-    telebrella_state.onenter = function(inst, timeout)
-        onenter_telebrella(inst, timeout)
+    HookSG_StatePost(sg, "telebrella", "onenter", function(inst, arg)
         local downvec = _G.TheCamera:GetDownVec()
         local facedown = -(math.atan2(downvec.z, downvec.x) * (180/math.pi))
         local vehicle = inst.components.driver.vehicle
@@ -395,8 +382,7 @@ AddStategraphPostInit("wilsonboating", function(self)
             vehicle.Transform:SetRotation(facedown)
             vehicle:Show()
         end
-    end
-
+    end)
 end)
 
 ------------------------------------------------------------------------------------
@@ -415,17 +401,9 @@ end)
 
 ------------------------------------------------------------------------------------
 
-local WORK_ACTIONS = {
-    _G.ACTIONS.CHOP,
-    _G.ACTIONS.DIG,
-    _G.ACTIONS.HAMMER,
-    _G.ACTIONS.MINE,
-}
-
 -- Fix Coconut being cutted in inventory by weather pain
--- and a crash with sinkables + ajust in work rate
+-- + ajust work rate
 AddStategraphPostInit("tornado", function(self)
-
     local function destroystuff(inst)
         local x, y, z = inst.Transform:GetWorldPosition()
         local ents = _G.TheSim:FindEntities(x, y, z, 3, nil, {"INLIMBO"}) -- Inlimbo = in inventory
@@ -447,7 +425,7 @@ AddStategraphPostInit("tornado", function(self)
 
                 elseif v.components.workable ~= nil and
                 v.components.workable.workleft > 0 and
-                table.contains(WORK_ACTIONS, v.components.workable:GetWorkAction()) then
+                not table.contains({_G.ACTIONS.NET, _G.ACTIONS.FISH}, v.components.workable:GetWorkAction()) then
                     _G.SpawnPrefab("collapse_small").Transform:SetPosition(v.Transform:GetWorldPosition())
                     v.components.workable:WorkedBy(inst, 2)
                 end
@@ -701,4 +679,175 @@ AddPrefabPostInit("packim", function(inst)
     inst.components.combat.notags = {"player"}
 end)
 
-    
+------------------------------------------------------------------------------------
+
+-- Shoals have her own quotes.
+AddPrefabPostInit("fishinhole", function(inst)
+    inst.components.inspectable.nameoverride = nil
+end)
+
+------------------------------------------------------------------------------------
+
+local function SetBlankAction(inst)
+    inst.components.workable:SetWorkAction(_G.ACTIONS.BLANK)
+end
+
+-- Obsidian Rock and Dragoon Den can now be destroyed by living artifact.
+AddPrefabPostInit("rock_obsidian", SetBlankAction)
+AddPrefabPostInit("dragoonden", SetBlankAction)
+
+------------------------------------------------------------------------------------
+
+-- Sealnado cann't grab the player if mounted.
+AddStategraphPostInit("twister", function(sg)
+    HookSG_StatePost(sg, "vacuum_loop", "onenter", function(inst, arg)
+        if _G.GetPlayer().components.rider:IsRiding() then
+            inst.components.vacuum.ignoreplayer = true
+        end
+    end)
+end)
+
+------------------------------------------------------------------------------------
+
+-- Items after desconstruction will float.
+AddPrefabPostInit("greenstaff", function(inst)
+    local _spell = inst.components.spellcaster.spell
+    inst.components.spellcaster.spell = function(staff, target)
+        _spell(staff, target)
+        local pt = target:GetPosition()
+        local ents = _G.TheSim:FindEntities(pt.x,pt.y,pt.z, 5, {"isinventoryitem"}, {"INLIMBO", "NOCLICK", "FX"})
+
+        for _, ent in ipairs(ents) do
+            if ent.spawntime > _G.GetTime() - 3 then
+                ent.components.inventoryitem:OnLootDropped(0)
+            end
+        end
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Sunken items can be catched with trawl net!
+AddPrefabPostInit("sunkenprefab", function(inst)
+    inst:RemoveTag("FX")
+    inst:RemoveTag("NOCLICK")
+end)
+
+------------------------------------------------------------------------------------
+
+-- Throw poop with Wilbur will not cause reflective damage.
+-- + effect for landing in water.
+AddPrefabPostInit("poop", function(inst)
+    if not inst.components.equippable then return end
+
+    inst.components.throwable.onthrown = function(inst, thrower, pt)
+        inst.flies:Remove()
+        inst:RemoveComponent("inventoryitem")
+
+        inst:AddTag("thrown")
+        inst:AddTag("projectile")
+
+        inst.AnimState:SetBank("monkey_projectile")
+        inst.AnimState:SetBuild("monkey_projectile")
+        inst.AnimState:PlayAnimation("idle", true)
+
+        inst.Physics:SetFriction(.2)
+
+        inst.GroundTask = inst:DoPeriodicTask(FRAMES, function()
+            local pos = inst:GetPosition()
+            if pos.y <= 0.5 then
+                local ents = _G.TheSim:FindEntities(pos.x, pos.y, pos.z, 1.5, nil, {"FX", "NOCLICK", "DECOR", "INLIMBO"})
+
+                for k,v in pairs(ents) do
+                    if v.components.combat then
+                        v.components.combat:GetAttacked(thrower, TUNING.POOP_THROWN_DAMAGE, inst)
+                    end
+                end
+
+                local fx = "poop_splat"
+
+                if inst:GetIsOnWater() then
+                    inst.SoundEmitter:PlaySound("dontstarve_DLC002/common/item_sink")
+                    fx =  "splash_water_sink"
+                end
+
+                local pt = inst:GetPosition()
+                _G.SpawnPrefab(fx).Transform:SetPosition(pt:Get())
+
+                inst:Remove()
+            end
+        end)
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Fixes the Ox trying to go home when attacking on ocean (not mangrove)
+AddBrainPostInit("oxbrain", function(brain)
+    local ocean_node = nil
+    local ocean_index = nil
+
+    for i, node in ipairs(brain.bt.root.children) do
+        if node.children and node.children[1].name == "intheocean" then
+            ocean_node = node
+            ocean_index = i
+            break
+        end
+    end
+
+    table.remove(brain.bt.root.children, ocean_index)
+    table.insert(brain.bt.root.children, #brain.bt.root.children - 2, ocean_node)
+end)
+
+------------------------------------------------------------------------------------
+
+local function FixAnimOnSpawn(inst, arg)
+    if inst.spawntime > _G.GetTime() - 3 then
+        if not inst:GetIsOnWater() then
+            inst.AnimState:SetBank("ox")
+        end
+        if inst:HasTag("wasbaby") then
+            inst:RemoveTag("wasbaby")
+            inst:DoTaskInTime(0.2, function()
+                inst.sg:GoToState("hair_growth_pop")
+            end) 
+        else
+            inst.sg:GoToState("idle")
+        end
+    end
+end
+
+-- Fixes animation on spawn of oxs.
+AddStategraphPostInit("ox", function(sg)
+    HookSG_StatePost(sg, "emerge", "onenter", FixAnimOnSpawn)
+    HookSG_StatePost(sg, "submerge", "onenter", FixAnimOnSpawn)
+end)
+
+------------------------------------------------------------------------------------
+
+AddStategraphPostInit("wilsonboating", function(sg)
+    -- Can use goggles attack when boating
+    HookSG_EventHandler(sg, "doattack", function(inst, data, _old)
+        if not inst.components.health:IsDead() and not inst.sg:HasStateTag("attack") and not inst.sg:HasStateTag("sneeze") then
+            local weapon = inst.components.combat and inst.components.combat:GetWeapon()
+            if weapon and weapon:HasTag("goggles") then 
+                inst.sg:GoToState("goggleattack")
+            end
+            
+            return _old(inst, data)
+        end
+    end)
+
+    sg.states["goggleattack"] = _G.deepcopy(SGwilson.states["goggleattack"])
+    sg.states["goggle_attack_post"] = _G.deepcopy(SGwilson.states["goggle_attack_post"])
+    AddTagToState(sg, "goggleattack", "boating")
+    AddTagToState(sg, "goggle_attack_post", "boating")
+
+    -- Wagstaff special voice parameter when boating.
+    HookSG_StatePre(sg, "talk", "onenter", function(inst, noanim)
+        if inst:HasTag("hasvoiceintensity_health") then
+            local percent = inst.components.health:GetPercent()
+            inst.SoundEmitter:SetParameter( "talk", "intensity", percent)
+        end
+    end)
+end)

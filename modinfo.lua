@@ -1,7 +1,7 @@
 name = "Bug Fixes"
 author = "Leonidas IV"
 
-version = "1.10"
+version = "1.11"
 
 api_version = 6
 forumthread = ""
@@ -45,5 +45,7 @@ configuration_options = {
     Config("fishfarm", "Fish Farm Raids"),
     Config("lava", "Pitch Fork Volcano-Lava"),
     Config("speed", "Speed after World Reset"),
+    Config("pigfixer", "Worker Pig Changes"),
+    Config("cityplants", "City Plants Changes"),
 }
 
