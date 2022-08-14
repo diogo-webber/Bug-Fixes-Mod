@@ -1,31 +1,34 @@
-env._G = GLOBAL
+GLOBAL.setmetatable(env,{__index=function(t,k) return GLOBAL.rawget(GLOBAL,k) end})
 
-env.TUNING = _G.TUNING
-env.GROUND = _G.GROUND
-env.STRINGS = _G.STRINGS
-env.FRAMES = _G.FRAMES
-env.EventHandler = _G.EventHandler
-env.TimeEvent = _G.TimeEvent
+------------------------------------------------------------------------------------
+
+Assets = {}
+PrefabFiles = {}
 
 env.GetConfig = GetModConfigData
 
-env.require = _G.require
 env.UpvalueHacker = require("upvaluehacker") -- Tool designed by Rezecib. <3
-modimport("scripts/utils.lua") -- Some functions
+modimport("scripts/utils.lua") -- Some functions.
+modimport("scripts/extra_fx.lua") -- New Fxs.
 
-env.hasHAM = _G.IsDLCEnabled(3)
-env.hasSW = _G.IsDLCEnabled(2) or hasHAM
-env.hasRoG = _G.IsDLCEnabled(1) or hasSW or hasHAM
+------------------------------------------------------------------------------------
 
-local fixes_folder = "scripts/bug_fixes/"
+env.hasHAM = IsDLCEnabled(3)
+env.hasSW = IsDLCEnabled(2) or hasHAM
+env.hasRoG = IsDLCEnabled(1) or hasSW or hasHAM
 
-modimport(fixes_folder.."vanilla.lua")
-
-if hasSW then
-    modimport(fixes_folder.."shipwecked.lua")
+local function ImportFixesFile(filename)
+    modimport("scripts/bug_fixes/"..filename..".lua")
 end
 
-if hasHAM then
-    modimport(fixes_folder.."hamlet.lua")
-end
+------------------------------------------------------------------------------------
 
+ImportFixesFile("vanilla")
+ImportFixesFile("screens")
+
+if hasSW  then ImportFixesFile("shipwecked")  end
+if hasHAM then ImportFixesFile("hamlet")      end
+
+------------------------------------------------------------------------------------
+
+local ImportFixesFile = nil

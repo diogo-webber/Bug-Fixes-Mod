@@ -1,45 +1,47 @@
-
 Added:
 
-- Hovering over entities with separate parts (fish farms, farms, fences, aporkalipse calendar) will apply the whitish effect to all parts.
-- Fixes a possible crash with mobs that can be captured with the net.
-- Fry-Goggles fixes:
- - The projectile will come out of the glasses when using it on a beefalo.
- - Shock damage caused by using it while wet will no longer be doubled.
- - Can be used on boats.
- - Fire rate has been lowered a bit, based on other weapons. That way it won't look like spam.
+- Dying inside an interior and resurrecting outside will no longer spawn the player in the void (HAM).
+- Fixed mouse over selection for Lawnornament and Topiaries (HAM).
+- Basalt Rocks (from Ancient Hulk) drops now automatically stacks to prevent fps drops (can be disabled) (HAM).
+- Fixes a crash caused by something destroying the root trunk storage entity (HAM).
+- Small adjustment to text positions in pop-ups.
+- Many Popups now support the "ESC" key to close them.
+- Some minor changes to the Mods screen text positions.
+- Packim Baggims will not trigger spider webs and will not be slowed by them (SW).
+- Meat/Fish dropped in water will no longer trigger mobs spawn on world loading (SW).
+- Added some missing quotes in SW compatibility worlds (SW).
+- Portable Crok Pot now has a place verb (from "plant") and drop it no longer automatically places it (SW).
+- Jelly Fishes now has its death anim (SW).
+- Jelly Fishes, Dog Fish and Sword Fish now die in place (will not fly off and fall back into water) (SW).
+- The seaweed will no longer have a buggy animation when planted (SW).
+- Flup and Sharkitten will no longer be reduced to ashes after burning, wtf Klei. They now also have panicky behavior while burning(SW).
+- Tiger Shark impact will no longer break/cut things in the player's inventory (SW).
+- Fences and Fence Gates will not have their drops doubled after being broken by charged obsidian tools (SW).
+- Wrap a bundle now shows the bundle coming visually from the player to the inventory, instead of coming from a random location.
+- Werepigs will not untransform during the day if the cause of the transformation is not a full moon.
+- Mobs can now unfreeze by heat correctly.
+- The mouse over selection for "Harp Statue" and "Tiger Shark" will no longer be a giant box.
+- Fixed a crash related to building interior doors with spacebar. All interior crafts can now be correctly positioned with the spacebar (HAM).
+- Lazy Explorer can no longer be spammed and has its own effects.
 
-- Beefalo mounted fixes:
- - Fixes many animations that made the character invisible and paralyzed.
- - Player can now collect, pick up items, craft and load weapons while mounted, just like in DST.
- - Weather pain's cast animation will no longer use beefalo's attack animation.
- - Sealnado and BFB can no longer "catch" the player while mounted.
- - Shooting with the Pew-matic Horn doesn't make the character invisible, but it will use another animation, as the mounted shoot animation doesn't exist.
- - Prevents the player from remounting the beefalo right after being thrown away.
-- The player will perform the sneeze, poison and cold animations while mounted.
-- The height of the player's quotes is adjusted with its height.
+- Lazy Forager fixes:
+- Can no longer pick up sunken objects and stuck them in the player's inventory (SW).
+- Has its own effects.
+- Items taken from a stack will visually come from the stack and not from a random position on the screen.
 
-- Structures created by other characters and which remain in the world will drop their materials when destroyed or deconstructed.
-- Many structure destruction sounds have been changed to match their crafting materials or appearance (Klei really likes to use the horrible wood sound for everything).
-- Mobs that return damage when attacked (jelly fish, charged volt goat, etc) no longer do damage when attacked with ranged attacks (ice/fire staffs, fry goggles, etc).
-- Mobs that poop (beefalo, koalefant) will have their poop coming out of the back and not inside them.
-- The placement of farms will now show their decorations and not just the soil. Also, they no longer have a fixed rotation (RoG+).
-- Fish shoals have their own inspection lines.
-- Obsidian Rock and Dragoon Den can now be destroyed by living artifact.
-- Items/structures deconstructed in water will have their materials floating, not on the water.
-- Sunken items can properly be retrieved with Trawl Net.
-- Poop thrown by wilbur will no longer have a break effect when thrown into water.
-- Water Beefalo (Ox) will no longer fail to attack something while in the ocean (outside the mangroge biome). Also, their animation when spawning has been adjusted so that it doesn't show water effect on land.
-- Wagstaff will have his voice effect while sailing.
-- Pew-matic Horn will accept any item in the load prompt, just like in the slot.
-- The tubers dropped by the tuber tree will have the same color of the plant.
-- The worker pig spawn, to fix something, has been adjusted, so it's not every second after the first one dies. The spawn conditions are: being relatively close to 5 pigs (a large area) and with a delay between spawns of 30-60 seconds.
-- Each Lawnornament will have its own name.
-- Destroyed city structures fixes:
- - Will have their correct quotes and prefixes, for example: "Burnt Topiary".
- - They will not get an invalid name after reloading the map (or just exist in the case of toparys) and didn't become invisible after the second reloading of the map.
- 
-- City plants (lawn ornaments, topiary, hedges) can now be burned and will have leaf effects when hit/broken (like hedges). They also no longer make wood sound
-- Living artifact will properly prevent the player from getting wet.
-- Add the possibility for "mysteries" in all trees, stalagmites and magma piles. Also fixes the duplicate drops bug.
-- The gas mask will properly apply a special voice effect.
+- Bats will not "slip" across the floor after being killed.
+- Removed collision, after death, for some mobs.
+- Farm crops will no longer wither when protected by Ice Flingomatic (RoG).
+- Many structures that spawn mobs, after being set on fire and extinguished, will spawn mobs again correctly.
+- Extinguishing explosives will interrupt their burning sound.
+- Monkey houses will release all monkeys when set on fire.
+- Deployables can now be placed from a tiny distance (like walls).
+- Thumper, Bearger, Hippotamose and others' impact attacks now bounce nearby items.
+
+Mod changes:
+
+- Fixed an issue that blocked the beefalos shaving action.
+- Improved optimization.
+- Fix "Removed balloon basket map icon" now works as expected.
+- The camera will now go straight to the interior in the "Ressurect in interiors fix".
+- City plants now also spread fire in addition to being burnable.

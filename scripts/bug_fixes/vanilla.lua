@@ -1,14 +1,10 @@
-Assets = {
-    -- Teleblella effects and sounds + Thumper Sounds.
-    Asset("ANIM", "anim/player_wagstaff.zip"),
-    Asset("ANIM", "anim/player_mount_wagstaff.zip"),
 
-    Asset("SOUNDPACKAGE", "sound/dontstarve_wagstaff.fev"),
-    Asset("SOUND", "sound/dontstarve_wagstaff.fsb"),
-    
-    -- Bundle Fx
-    Asset("ANIM", "anim/player_wrap_bundle.zip"),
-}
+LoadAsset.Anim("player_wagstaff") --> Wagstaff anims
+LoadAsset.Anim("player_mount_wagstaff")
+LoadAsset.Anim("player_wrap_bundle") --> Bundle Fx
+LoadAsset.Anim("sand_puff")
+
+LoadAsset.Sound("dontstarve_wagstaff") --> Wagstaff sounds
 
 ------------------------------------------------------------------------------------
 
@@ -34,40 +30,32 @@ AddPrefabPostInit("fence_gate", function(inst)
     end
 end)
 
--- Fix "plant" string on fence/gate deploy.
-local _ACTIONS_DEPLOY_strfn = _G.ACTIONS.DEPLOY.strfn
-_G.ACTIONS.DEPLOY.strfn = function(act)
+-- Fix "plant" string on fence/gate and portable cook pot deploy.
+local _ACTIONS_DEPLOY_strfn = ACTIONS.DEPLOY.strfn
+ACTIONS.DEPLOY.strfn = function(act)
     if act.invobject then
         return 
-            act.invobject:HasTag("gatebuilder") and "GATE" or 
-            act.invobject:HasTag("fencebuilder") and "FENCE" or
+            (act.invobject:HasTag("gatebuilder") and "GATE") or 
+            (act.invobject:HasTag("fencebuilder") and "FENCE") or
+            (act.invobject:HasTag("portableitem") and "PORTABLE") or
             _ACTIONS_DEPLOY_strfn(act)
     end
 end
 
 ------------------------------------------------------------------------------------
 
--- Slot Detail Screen ESC Fix
-local LoadGameScreen = _G.require("screens/loadgamescreen")
-local SlotDetailsScreen = _G.require("screens/slotdetailsscreen")
-
-local function FixedOnControl(self, control, down)
-    if SlotDetailsScreen._base.OnControl(self, control, down) then return true end
-
-    if control == _G.CONTROL_CANCEL and not down then
-        _G.EnableAllDLC()
-        _G.TheFrontEnd:PopScreen(self)
-        return true
+-- Fix item duplication after broken fences/gates with a charged obsidian tools.
+local function FixFenceHit(inst)
+    local _onhit = inst.components.combat.onhitfn
+    inst.components.combat.onhitfn = function(inst, ...)
+        if inst.components.workable.workleft > 0 then
+            _onhit(inst, ...)
+        end
     end
 end
 
-function LoadGameScreen:OnControl(control, down)
-    return FixedOnControl(self, control, down)
-end
-
-function SlotDetailsScreen:OnControl( control, down )
-    return FixedOnControl(self, control, down)
-end
+AddPrefabPostInit("fence", FixFenceHit)
+AddPrefabPostInit("fence_gate", FixFenceHit)
 
 ------------------------------------------------------------------------------------
 
@@ -76,14 +64,14 @@ local function FixCompanions(inst)
         inst:RemoveTag("chester")
     else
         inst:DoTaskInTime(1.5, function(inst)
-            if not _G.TheSim:FindFirstEntityWithTag("chester_eyebone2") then
+            if not TheSim:FindFirstEntityWithTag("chester_eyebone2") then
                 inst:Remove()
             end
         end)
     end
 
     inst:DoTaskInTime(0, function(inst)
-        local next_inst = _G.TheSim:FindFirstEntityWithTag(inst.prefab)
+        local next_inst = TheSim:FindFirstEntityWithTag(inst.prefab)
         if next_inst and next_inst ~= inst then
             print(inst, "is a duplicate! Removing it...")
             inst:Remove()
@@ -105,7 +93,7 @@ end)
 -- Makes bundle more similar to DST:
 
 local function spawnfx()
-    local inst = _G.CreateEntity()
+    local inst = CreateEntity()
 
     inst.entity:AddTransform()
     inst.entity:AddAnimState()
@@ -123,33 +111,37 @@ local function spawnfx()
     return inst
 end
 
-_G.ACTIONS.UNWRAP.priority = 3
+-- Unwrap on ground.
+ACTIONS.UNWRAP.priority = 3
+
+local function BundleOnUnwrappedFn(inst, pos, doer)
+    if inst.burnt then
+        SpawnPrefab("ash").Transform:SetPosition(pos:Get())
+    else
+        local waxpaper = SpawnPrefab("waxpaper")
+        waxpaper.Transform:SetPosition(pos:Get())
+        waxpaper.components.inventoryitem:OnDroppedBundle() --Custom method
+                    
+        if waxpaper.components.moisturelistener then
+            local bundle_moisture = inst.components.moisturelistener:GetMoisture()
+            local bundle_iswet = inst.components.moisturelistener:IsWet()
+
+            waxpaper.components.moisturelistener.moisture = bundle_moisture
+            waxpaper.components.moisturelistener.wet = bundle_iswet
+        end
+        
+        spawnfx().Transform:SetPosition(pos:Get())
+    end
+
+    if doer ~= nil and doer.SoundEmitter ~= nil then
+        doer.SoundEmitter:PlaySound("dontstarve/common/craftable/bundles/packaged")
+    end
+
+    inst:Remove()
+end
 
 AddPrefabPostInit("bundle", function(inst)
-    inst.components.unwrappable:SetOnUnwrappedFn(function(inst, pos, doer)
-        if inst.burnt then
-            _G.SpawnPrefab("ash").Transform:SetPosition(pos:Get())
-        else
-            local waxpaper = _G.SpawnPrefab("waxpaper")
-            waxpaper.Transform:SetPosition(pos:Get())
-            waxpaper.components.inventoryitem:OnDroppedBundle() --Custom method
-                        
-            if waxpaper.components.moisturelistener then
-                local bundle_moisture = inst.components.moisturelistener:GetMoisture()
-                local bundle_iswet = inst.components.moisturelistener:IsWet()
-
-                waxpaper.components.moisturelistener.moisture = bundle_moisture
-                waxpaper.components.moisturelistener.wet = bundle_iswet
-            end
-            
-            spawnfx().Transform:SetPosition(pos:Get())
-        end
-
-        if doer ~= nil and doer.SoundEmitter ~= nil then
-            doer.SoundEmitter:PlaySound("dontstarve/common/craftable/bundles/packaged")
-        end
-        inst:Remove()
-    end)
+    inst.components.unwrappable:SetOnUnwrappedFn(BundleOnUnwrappedFn)
 end)
 
 -- Test if the item is irreplaceable
@@ -162,43 +154,81 @@ AddPrefabPostInit("bundle_container", function(inst)
     end
 end)
 
-AddComponentPostInit("unwrappable", function(self)
-    function self:Unwrap(doer)
-        local pos = self.inst:GetPosition()
-        pos.y = 0
-        if self.itemdata ~= nil then
-            if doer ~= nil and
-                self.inst.components.inventoryitem ~= nil and
-                self.inst.components.inventoryitem:GetGrandOwner() == doer then
-                local doerpos = doer:GetPosition()
-                local offset = _G.FindWalkableOffset(doerpos, doer.Transform:GetRotation() * _G.DEGREES, 1, 8, false, true)
-                if offset ~= nil then
-                    pos.x = doerpos.x + offset.x
-                    pos.z = doerpos.z + offset.z
-                else
-                    pos.x, pos.z = doerpos.x, doerpos.z
-                end
+local function unwrappable_Unwrap(self, doer)
+    local pos = self.inst:GetPosition()
+    pos.y = 0
+    if self.itemdata ~= nil then
+        if doer ~= nil and
+            self.inst.components.inventoryitem ~= nil and
+            self.inst.components.inventoryitem:GetGrandOwner() == doer then
+            local doerpos = doer:GetPosition()
+            local offset = FindWalkableOffset(doerpos, doer.Transform:GetRotation() * DEGREES, 1, 8, false, true)
+            if offset ~= nil then
+                pos.x = doerpos.x + offset.x
+                pos.z = doerpos.z + offset.z
+            else
+                pos.x, pos.z = doerpos.x, doerpos.z
             end
-
-            for i, v in ipairs(self.itemdata) do
-                local item = _G.SpawnPrefab(v.prefab)
-                if item ~= nil and item:IsValid() then
-                    if item.Physics ~= nil then
-                        item.Physics:Teleport(pos:Get())
-                    else
-                        item.Transform:SetPosition(pos:Get())
-                    end
-                    item:SetPersistData(v.data)
-                    if item.components.inventoryitem ~= nil then
-                        item.components.inventoryitem:OnDroppedBundle() -- Custom method
-                    end
-                end
-            end
-            self.itemdata = nil
         end
 
-        if self.onunwrappedfn ~= nil then
-            self.onunwrappedfn(self.inst, pos, doer)
+        for i, v in ipairs(self.itemdata) do
+            local item = SpawnPrefab(v.prefab)
+            if item ~= nil and item:IsValid() then
+                if item.Physics ~= nil then
+                    item.Physics:Teleport(pos:Get())
+                else
+                    item.Transform:SetPosition(pos:Get())
+                end
+                item:SetPersistData(v.data)
+                if item.components.inventoryitem ~= nil then
+                    item.components.inventoryitem:OnDroppedBundle() -- Custom method
+                end
+            end
+        end
+        self.itemdata = nil
+    end
+
+    if self.onunwrappedfn ~= nil then
+        self.onunwrappedfn(self.inst, pos, doer)
+    end
+end
+
+AddComponentPostInit("unwrappable", function(self)
+    self.Unwrap = unwrappable_Unwrap
+end)
+
+-- Spawn -> inventory effect fix
+AddComponentPostInit("bundler", function(self)
+    function self:OnFinishBundling()
+        if self.bundlinginst ~= nil and
+            self.bundlinginst.components.container ~= nil and
+            not self.bundlinginst.components.container:IsEmpty() and
+            self.wrappedprefab ~= nil then
+            local wrapped = SpawnPrefab(self.wrappedprefab)
+            if wrapped ~= nil then
+                local give_pos = self.bundlinginst:GetPosition()
+                if wrapped.components.unwrappable ~= nil then
+                    local items = {}
+                    for i = 1, self.bundlinginst.components.container:GetNumSlots() do
+                        local item = self.bundlinginst.components.container:GetItemInSlot(i)
+                        if item ~= nil then
+                            table.insert(items, item)
+                        end
+                    end
+                    wrapped.components.unwrappable:WrapItems(items, self.inst)
+                    self.bundlinginst:Remove()
+                    self.bundlinginst = nil
+                    self.itemprefab = nil
+                    self.wrappedprefab = nil
+                    if self.inst.components.inventory ~= nil then
+                        self.inst.components.inventory:GiveItem(wrapped, nil, Vector3(TheSim:GetScreenPos(give_pos:Get())))
+                    else
+                        DropItem(self.inst, wrapped)
+                    end
+                else
+                    wrapped:Remove()
+                end
+            end
         end
     end
 end)
@@ -234,7 +264,7 @@ AddStategraphPostInit("wilson", function(self)
     end
 
     bundle_state.events = {
-        EventHandler("animqueueover", function(inst)
+        ["animqueueover"] = EventHandler("animqueueover", function(inst)
             if inst.AnimState:AnimDone() then
                 inst.sg:GoToState("idle")
             end
@@ -262,7 +292,7 @@ AddStategraphPostInit("wilson", function(self)
     end
 
     bundling_state.onupdate = function(inst)
-        if not _G.CanEntitySeeTarget(inst, inst) then
+        if not CanEntitySeeTarget(inst, inst) then
             inst.AnimState:PlayAnimation(bundle_anim.."_pst")
             inst.sg:GoToState("idle", true)
         end
@@ -293,74 +323,76 @@ end)
 
 ------------------------------------------------------------------------------------
 
+local function inventoryitem_OnDroppedBundle(self)
+    if not self.inst:IsValid() then
+        return
+    end
+    
+    local x,y,z = self.inst.Transform:GetWorldPosition()
+
+    local dropper = nil
+    if self.owner then
+        dropper = self.owner
+        x,y,z = self.owner.Transform:GetWorldPosition()
+    end
+
+    self:OnRemoved()
+
+    self.inst.Transform:SetPosition(x,y,z)
+    self.inst.Transform:UpdateTransform()
+
+    if self.inst.Physics then
+        if not self.nobounce then
+            y = y + 1
+            self.inst.Physics:Teleport(x,y,z)
+        end
+
+        local vel = Vector3(0, 5, 0)
+        
+        local speed = 0.5 + math.random()          
+        local angle = math.random()*2*PI
+        vel.x = speed*math.cos(angle)
+        vel.y = speed*3
+        vel.z = speed*math.sin(angle)
+        
+        if self.nobounce then
+            vel.y = 0
+        end
+        self.inst.Physics:SetVel(vel.x, vel.y, vel.z)
+    end
+
+    if self.ondropfn then
+        self.ondropfn(self.inst, dropper)
+    end
+    self.inst:PushEvent("ondropped")
+    
+    if self.inst.components.propagator then
+        self.inst.components.propagator:Delay(5)
+    end
+
+    if self.OnStartFalling then
+        self:OnStartFalling()
+    end
+end
+
 -- Make a custom method with HAM's OnDropped, to use setspeed param in bundle
 AddComponentPostInit("inventoryitem", function(self)
-    function self:OnDroppedBundle()
-        if not self.inst:IsValid() then
-            return
-        end
-        
-        local x,y,z = self.inst.Transform:GetWorldPosition()
-
-        local dropper = nil
-        if self.owner then
-            dropper = self.owner
-            x,y,z = self.owner.Transform:GetWorldPosition()
-        end
-
-        self:OnRemoved()
-
-        self.inst.Transform:SetPosition(x,y,z)
-        self.inst.Transform:UpdateTransform()
-
-        if self.inst.Physics then
-            if not self.nobounce then
-                y = y + 1
-                self.inst.Physics:Teleport(x,y,z)
-            end
-
-            local vel = _G.Vector3(0, 5, 0)
-            
-            local speed = 0.5 + math.random()          
-            local angle = math.random()*2*_G.PI
-            vel.x = speed*math.cos(angle)
-            vel.y = speed*3
-            vel.z = speed*math.sin(angle)
-            
-            if self.nobounce then
-                vel.y = 0
-            end
-            self.inst.Physics:SetVel(vel.x, vel.y, vel.z)
-        end
-
-        if self.ondropfn then
-            self.ondropfn(self.inst, dropper)
-        end
-        self.inst:PushEvent("ondropped")
-        
-        if self.inst.components.propagator then
-            self.inst.components.propagator:Delay(5)
-        end
-
-        if self.OnStartFalling then
-            self:OnStartFalling()
-        end
-    end
+    self.OnDroppedBundle = inventoryitem_OnDroppedBundle
 end)
 
 ------------------------------------------------------------------------------------
 
+local function EnableShadow(inst, arg)
+    inst.DynamicShadow:Enable(true)
+end
+
+local function DisableShadow(inst, arg)
+    inst.DynamicShadow:Enable(true)
+end
+
 -- Fix a incoerent shadow in telebrella anim
 local function FixTelebrellaShadow(sg)
-    local function EnableShadow(inst, arg)
-        inst.DynamicShadow:Enable(true)
-    end
-    local function DisableShadow(inst, arg)
-        inst.DynamicShadow:Enable(true)
-    end
-
-    HookSG_StatePost(sg, "telebrella_finish", "onenter", DisableShadow)
-    HookSG_StatePost(sg, "telebrella_finish", "onexit",  EnableShadow)
+    Hooks.sg.state.Onenter_Onexit(sg, "telebrella_finish", DisableShadow, EnableShadow)
 end
 
 AddStategraphPostInit("wilson", FixTelebrellaShadow)
@@ -387,7 +419,7 @@ if GetConfig("treeseed") then
         "teatree_nut",
     }
 
-    -- Fix the tree fire exploit, because chest growing trees isn't cool
+    -- Fixes the tree fire exploit, because chest growing trees isn't cool
     for _, tree in ipairs(trees) do
         AddPrefabPostInit(tree, function(inst)
             local _onextinguish_fn = inst.event_listeners and inst.event_listeners["onextinguish"] and inst.event_listeners["onextinguish"][inst][1]
@@ -437,7 +469,7 @@ AddPrefabPostInit("staff_tornado", function(inst)
         local old_test = _spelltest(staff, caster, target, pos)
 
         if old_test and target.components.workable then
-            return not table.contains({_G.ACTIONS.NET, _G.ACTIONS.FISH}, target.components.workable:GetWorkAction())
+            return not table.contains({ACTIONS.NET, ACTIONS.FISH}, target.components.workable:GetWorkAction())
         end
 
         return old_test
@@ -456,28 +488,30 @@ AddPrefabPostInit("skeleton_player", SkeletonTweak)
 
 ------------------------------------------------------------------------------------
 
+local function BeeBox_getstatus(inst)
+    if inst.components.harvestable and inst.components.harvestable:CanBeHarvested() then
+        if inst.components.harvestable.produce == inst.components.harvestable.maxproduce then
+            return "FULLHONEY"
+        elseif inst.components.childspawner and inst.components.childspawner:CountChildrenOutside() > 0 then
+            return "GENERIC"
+        else
+            return "SOMEHONEY"
+        end
+    end
+    return "NOHONEY"
+end
+
 -- Fixes missing Beebox inspection lines for different states.
 -- Made by: alainmcd and piratekingflcl [Mod Id - 952458573]
 AddPrefabPostInit("beebox", function(inst)
-    inst.components.inspectable.getstatus = function(inst)
-        if inst.components.harvestable and inst.components.harvestable:CanBeHarvested() then
-            if inst.components.harvestable.produce == inst.components.harvestable.maxproduce then
-                return "FULLHONEY"
-            elseif inst.components.childspawner and inst.components.childspawner:CountChildrenOutside() > 0 then
-                return "GENERIC"
-            else
-                return "SOMEHONEY"
-            end
-        end
-        return "NOHONEY"
-    end
+    inst.components.inspectable.getstatus = BeeBox_getstatus
 end)
 
 ------------------------------------------------------------------------------------
 
 -- Fix Wee Mactusk loot and a Navigadget Crash. Made by: Faintly Macabre.
 AddPrefabPostInit("little_walrus", function(inst)
-    _G.SetSharedLootTable('walrus_wee_loot', {{'meat', 1}})
+    SetSharedLootTable('walrus_wee_loot', {{'meat', 1}})
 end)
 
 ------------------------------------------------------------------------------------
@@ -490,9 +524,9 @@ if hasRoG then
             _OnEntityWake(inst)
             if not inst:HasTag("burnt") and not inst:HasTag("fire") and inst:HasTag("stump") then
                 inst:RemoveComponent("burnable")
-                _G.MakeSmallBurnable(inst)
+                MakeSmallBurnable(inst)
                 inst:RemoveComponent("propagator")
-                _G.MakeSmallPropagator(inst)
+                MakeSmallPropagator(inst)
             end
         end
     end
@@ -510,28 +544,10 @@ end
 
 ------------------------------------------------------------------------------------
 
-if hasHAM then  -- This shit refuses to run in the hamlet file.
-    local states = {"play_flute", "play_horn", "play_bell", "use_fan", "map", "toolbroke"}
-    
-    -- Fixes ghost carry arm for Wilba in Werewilba form.
-    AddStategraphPostInit("wilson", function(sg)
-        for _, state in ipairs(states) do
-            HookSG_StatePost(sg, state, "onexit", function(inst, arg) 
-                if inst.were then
-                    inst.AnimState:Hide("ARM_carry") 
-                    inst.AnimState:Show("ARM_normal")
-                end
-            end)
-        end
-    end)
-end
-
-------------------------------------------------------------------------------------
-
 local function FixLightOnDay(inst)
     local _onfar = inst.components.playerprox.onfar
     inst.components.playerprox:SetOnPlayerFar(function(inst)
-        if not _G.GetClock():IsDay() then
+        if not GetClock():IsDay() then
             _onfar(inst)
         end
     end)
@@ -596,10 +612,13 @@ end
 
 -- Fixes a lot of problems with WorkedBy/Destroy things with FISH and NET actions.
 -- (Explosives and Weather Pain)
+
+local function FISH_AND_NET_canbeworkedby(worker, numworks)
+    return worker.components.inventory ~= nil
+end
+
 local function FixNegativeWorkleft(inst)
-    inst.components.workable.canbeworkedby = function(worker, numworks)
-        return worker.components.inventory ~= nil
-    end
+    inst.components.workable.canbeworkedby = FISH_AND_NET_canbeworkedby
 end
 
 AddComponentPostInit("sinkable", function(self)
@@ -629,21 +648,20 @@ end
 
 ------------------------------------------------------------------------------------
 
+local function SetFourFaces(inst, arg)
+    if inst.components.rider:IsRiding() then
+        inst.Transform:SetFourFaced()
+    end
+end
+
+local function SetSixFaces(inst, arg)
+    if inst.components.rider:IsRiding() then
+        inst.Transform:SetSixFaced()
+    end
+end
+
 local function FixMountedState(sg, state)
-    local function SetFourFaces(inst, arg)
-        if inst.components.rider:IsRiding() then
-            inst.Transform:SetFourFaced()
-        end
-    end
-
-    local function SetSixFaces(inst, arg)
-        if inst.components.rider:IsRiding() then
-            inst.Transform:SetSixFaced()
-        end
-    end
-
-    HookSG_StatePre(sg, state, "onenter", SetFourFaces)
-    HookSG_StatePre(sg, state, "onexit",  SetSixFaces)
+    Hooks.sg.state.Onenter_Onexit(sg, state, SetFourFaces, SetSixFaces)
 end
 
 ------------------------------------------------------------------------------------
@@ -656,7 +674,7 @@ end)
 
 ------------------------------------------------------------------------------------
 
-local mounted_funnyidle_state = _G.State{
+local mounted_funnyidle_state = State{
     name = "mounted_funnyidle",
     tags = {"idle", "canrotate"},
     onenter = function(inst)
@@ -673,7 +691,9 @@ local mounted_funnyidle_state = _G.State{
         end
     end,
 
-    events = {EventHandler("animqueueover", function(inst) inst.sg:GoToState("idle") end)},
+    events = {
+        ["animqueueover"] = EventHandler("animqueueover", function(inst) inst.sg:GoToState("idle") end)
+    },
 }
 
  local states_to_fix = {
@@ -692,13 +712,13 @@ local mounted_funnyidle_state = _G.State{
 }
 
 local function IsMounting()
-    return _G.GetPlayer().components.rider:IsRiding()
+    return GetPlayer().components.rider:IsRiding()
 end
 
     -- Beefalo Fixes:
 AddStategraphPostInit("wilson", function(sg)
     sg.states["domediumaction"] = 
-    _G.State{
+    State{
         name = "domediumaction",
         
         onenter = function(inst)
@@ -707,50 +727,39 @@ AddStategraphPostInit("wilson", function(sg)
     }
     
     -- Make always long action when mounting.
-    HookSG_ActionHandler(sg, "PICKUP", function(inst, action, _old)
+    Hooks.sg.handler.Action(sg, "PICKUP", function(inst, action, _old)
         return IsMounting() and "domediumaction" or "doshortaction"
     end)
 
-    HookSG_ActionHandler(sg, "PICK", function(inst, action, _old)
+    Hooks.sg.handler.Action(sg, "PICK", function(inst, action, _old)
         return IsMounting() and "dolongaction" or _old(inst, action)
     end)
 
     -- BFB cann't grab the player if mounting.
-    HookSG_EventHandler(sg, "cower", function(inst, data, _old)
+    Hooks.sg.handler.Event(sg, "cower", function(inst, data, _old)
         return not IsMounting() and _old(inst, data)
     end)
 
     -- Will no longer use the beefalo atk animation for Weather Pain when mounting.
-    HookSG_StatePost(sg, "castspell_tornado", "onenter", function(inst, arg)
+    Hooks.sg.state.Post(sg, "castspell_tornado", "onenter", function(inst, arg)
         return IsMounting() and inst.AnimState:PlayAnimation("player_atk")
     end)
 
     -- Shitty fix for be able to use Wheeler Gun when mounting.
-    HookSG_StatePost(sg, "shoot", "onenter", function(inst, arg)
+    Hooks.sg.state.Post(sg, "shoot", "onenter", function(inst, arg)
         return IsMounting() and inst.AnimState:PlayAnimation("speargun")
     end)
-
-    local function EnableMoviment(inst, arg)
-        inst.components.playercontroller:Enable(true)
-    end
-
-    local function DisableMoviment(inst, arg)
-        inst.components.playercontroller:Enable(false)
-    end
     
     -- Fixes player enabled to action during bucked state.
     AddTagToState(sg, "bucked", "doing")
     AddTagToState(sg, "bucked_post", "doing")
 
-    --                    state           fn        fn_to_apply
-    HookSG_StatePre(sg, "bucked",      "onenter", DisableMoviment)
-    HookSG_StatePre(sg, "bucked",      "onexit",  EnableMoviment)
-    HookSG_StatePre(sg, "bucked_post", "onenter", DisableMoviment)
-    HookSG_StatePre(sg, "bucked_post", "onexit",  EnableMoviment)
+    Hooks.sg.state.AddToggleMoviment(sg, "bucked")
+    Hooks.sg.state.AddToggleMoviment(sg, "bucked_post")
 
     sg.states["mounted_funnyidle"] = mounted_funnyidle_state
     
-    HookSG_StatePre(sg, "mounted_idle", "ontimeout", function(inst)
+    Hooks.sg.state.Pre(sg, "mounted_idle", "ontimeout", function(inst)
         if (inst.components.poisonable and inst.components.poisonable:IsPoisoned())
         or inst.components.temperature:GetCurrent() < 10 then
             inst.sg:GoToState("mounted_funnyidle")
@@ -764,13 +773,13 @@ AddStategraphPostInit("wilson", function(sg)
 end)
 
 -- Extinguish smolders when mounting.
-if hasRoG then _G.ACTIONS.SMOTHER.mount_enabled = true end
+if hasRoG then ACTIONS.SMOTHER.mount_enabled = true end
 
 -- Player can now pick pickables when mounting.
-_G.ACTIONS.PICK.mount_enabled = true
+ACTIONS.PICK.mount_enabled = true
 
 -- Player can now pickup items when mounting.
-_G.ACTIONS.PICKUP.mount_enabled = true
+ACTIONS.PICKUP.mount_enabled = true
 
 AddComponentPostInit("playercontroller", function(self)
     local _GetToolAction = self.GetToolAction
@@ -783,7 +792,7 @@ AddComponentPostInit("playercontroller", function(self)
         local notags = {"FX", "NOCLICK"}
         local rad = self.directwalking and 3 or 6
 
-        local pickup = _G.FindEntity(self.inst, rad, 
+        local pickup = FindEntity(self.inst, rad, 
             function(guy) return (
                 (
                     guy.components.inventoryitem and 
@@ -801,13 +810,13 @@ AddComponentPostInit("playercontroller", function(self)
         
         if pickup then
             if pickup.components.inventoryitem and pickup.components.inventoryitem.canbepickedup and (not pickup.components.mine or pickup.components.mine.inactive) then 
-                action = _G.ACTIONS.PICKUP
+                action = ACTIONS.PICKUP
             elseif pickup.components.pickable and pickup.components.pickable:CanBePicked() then 
-                action = _G.ACTIONS.PICK
+                action = ACTIONS.PICK
             end
         end
         
-        return action and _G.BufferedAction(self.inst, pickup, action, tool) or _GetToolAction(self, tool)
+        return action and BufferedAction(self.inst, pickup, action, tool) or _GetToolAction(self, tool)
     end
 end)
 
@@ -816,10 +825,10 @@ end)
 -- Make the quotes compatiple with beefalo heigh.
 AddPlayerPostInit(function(player)
     player:ListenForEvent("mounted", function(inst, data)
-        player.components.talker.offset = _G.Vector3(0, -720, 0)
+        player.components.talker.offset = Vector3(0, -720, 0)
     end)
     player:ListenForEvent("dismounted", function(inst, data)
-        player.components.talker.offset = _G.Vector3(0, -400, 0)
+        player.components.talker.offset = Vector3(0, -400, 0)
     end)
 end)
 
@@ -833,9 +842,9 @@ AddComponentPostInit("tradable", function(self)
             if target.components.trader and
               target.components.trader.enabled and
               target.components.inventoryitem and
-              target.components.inventoryitem.owner == _G.GetPlayer() then
+              target.components.inventoryitem.owner == GetPlayer() then
                 if target.components.trader:CanAccept(self.inst, doer) then
-                    table.insert(actions, _G.ACTIONS.GIVE)
+                    table.insert(actions, ACTIONS.GIVE)
                     return
                 end
             end
@@ -848,9 +857,9 @@ end)
 ------------------------------------------------------------------------------------
 
 -- Leave the check for placement to builder.
-local _BUILD_fn = _G.ACTIONS.BUILD.fn
-_G.ACTIONS.BUILD.fn = function(act)
-    local success = _BUILD_fn(act)
+local _BUILD_fn = ACTIONS.BUILD.fn
+ACTIONS.BUILD.fn = function(act, ...)
+    local success = _BUILD_fn(act, ...)
     if not success then
         if act.doer.components.builder then
             return act.doer.components.builder:DoBuild(act.recipe, act.pos, act.rotation, act.modifydata)
@@ -864,7 +873,7 @@ end
 AddComponentPostInit("builder", function(self)
     local _DoBuild = self.DoBuild
     function self:DoBuild(recname, ...)
-        local recipe = _G.GetRecipe(recname)
+        local recipe = GetRecipe(recname)
         if recipe and self:IsBuildBuffered(recname) or self:CanBuild(recname) then
             if recipe.placer ~= nil and
             self.inst.components.rider ~= nil and
@@ -879,16 +888,16 @@ end)
 
 ------------------------------------------------------------------------------------
 
-local function AddDesconstrutive(recipe, recipetab, ingredients)
-    if not _G.GetRecipe(recipe) then
-        Recipe(recipe, ingredients, _G.RECIPETABS[recipetab], _G.TECH.LOST)
+local function AddDesconstrutive(recipe, ingredients)
+    if not GetRecipe(recipe) then
+        Recipe(recipe, ingredients, nil, TECH.LOST)
     end
 end
 
 -- Strutures build by characters will drop his loot then destroyed.
-if hasSW then AddDesconstrutive("woodlegsboat", "NAUTICAL", {Ingredient("boatcannon", 1), Ingredient("boards", 4), Ingredient("dubloon", 4)}) end
-AddDesconstrutive("telipad", "TOWN", {Ingredient("gears", 1), Ingredient("transistor", 1),Ingredient("cutstone", 2)})
-AddDesconstrutive("thumper", "TOWN", {Ingredient("gears", 1), Ingredient("flint", 6), Ingredient("hammer", 2)})
+if hasSW then AddDesconstrutive("woodlegsboat", {Ingredient("boatcannon", 1), Ingredient("boards", 4), Ingredient("dubloon", 4)}) end
+AddDesconstrutive("telipad", {Ingredient("gears", 1), Ingredient("transistor", 1),Ingredient("cutstone", 2)})
+AddDesconstrutive("thumper", {Ingredient("gears", 1), Ingredient("flint", 6), Ingredient("hammer", 2)})
 
 ------------------------------------------------------------------------------------
 
@@ -988,11 +997,12 @@ for _, prefab in pairs(needs_projectile_tag) do
     end)
 end
 
-if _G.EntityScript then
-    local _PushEvent = _G.EntityScript.PushEvent
+if EntityScript then
+    local _PushEvent = EntityScript.PushEvent
 
-    function _G.EntityScript.PushEvent(inst, event, data)
-        if event == "attacked" and 
+    function EntityScript.PushEvent(inst, event, data)
+        if event == "attacked" and
+          data and
           data.attacker and
           not data.weapon then
             data.weapon = data.attacker.components.combat and
@@ -1008,10 +1018,10 @@ end
 local function OnPooped(inst, poop)
     local heading_angle = -(inst.Transform:GetRotation()) + 180
 
-    local pos = _G.Vector3(inst.Transform:GetWorldPosition())
-    pos.x = pos.x + (math.cos(heading_angle*_G.DEGREES))
+    local pos = Vector3(inst.Transform:GetWorldPosition())
+    pos.x = pos.x + (math.cos(heading_angle*DEGREES))
     pos.y = pos.y + 0.9
-    pos.z = pos.z + (math.sin(heading_angle*_G.DEGREES))
+    pos.z = pos.z + (math.sin(heading_angle*DEGREES))
     poop.Transform:SetPosition(pos.x, pos.y, pos.z)
 
     if poop.components.inventoryitem and poop.components.inventoryitem.OnStartFalling then
@@ -1052,14 +1062,14 @@ end)
 ------------------------------------------------------------------------------------
 
 if hasRoG then
-    local back = -1 local front = 0 local left = 1.5 local right = -1.5 local rock_front = 1
+    local back, front, left, right, rock_front = -1, 0, 1.5, -1.5, 1
 
     local decor_defs = {
         [2] = {{stick={{left-0.9,0,back},{right,0,front},}},{stickleft={{0.0,0,back},{left,0,front},}},{stickright={{right+0.9,0,back},{left-0.3,0,back+0.5},{right+0.3,0,back+0.5},}},{signleft={{-1.0,0,0.5}}}},
         [3] = {{signleft={{-1.0,0,0.5}}},{farmrock={{right+3.0,0,rock_front+0.2},{right+3.05,0,rock_front-1.5},}},{farmrocktall={{right+3.07,0,rock_front-1.0},}},{farmrockflat={{right+3.06,0,rock_front-0.4},}},{farmrock={{left-3.05,0,rock_front-1.0},}},{farmrocktall={{left-3.07,0,rock_front-1.5},}},{farmrockflat={{left-3.06,0,rock_front-0.4},}},{farmrock={{right+1.1,0,rock_front+0.21},{right+2.4,0,rock_front+0.25},}},{farmrocktall={{right+0.5,0,rock_front+0.195},}},{farmrockflat={{right+0.0,0,rock_front-0.0},{right+1.8,0,rock_front+0.22},}},{farmrockflat={{left-1.3,0,back-0.19},}},{farmrock={{left-0.5,0,back-0.21},{left-2.5,0,back-0.22},}},{farmrocktall={{left+0.0,0,back-0.15},{left-3.0,0,back-0.20},{left-1.9,0,back-0.205},}},{fencepost={{left-1.0,0,back+0.15},{right+0.8,0,back+0.15},{right+0.3,0,back+0.15},},},{fencepostright={{left-0.5,0,back+0.15},{0,0,back+0.15},},},},
     }
 
-    -- Create linked system if don't have it (vanilla, RoG...)
+    -- Create linked system if don't have it (RoG...)
     AddComponentPostInit("placer", function(self)
         local _OnUpdate = self.OnUpdate
 
@@ -1068,7 +1078,7 @@ if hasRoG then
                 _OnUpdate(self, ...)
                 if self.fixedcameraoffset then
                     for i, v in ipairs(self.linked) do
-                        local color = self.can_build and _G.Vector3(.25, .75, .25) or _G.Vector3(.75, .25, .25)		
+                        local color = self.can_build and Vector3(.25, .75, .25) or Vector3(.75, .25, .25)		
                         v.AnimState:SetAddColour(color.x, color.y, color.z, 1)
                     end
                 end
@@ -1085,35 +1095,35 @@ if hasRoG then
         function self:OnUpdate(...)
             _OnUpdate(self, ...)
         
-            local downvec = _G.TheCamera:GetDownVec()
+            local downvec = TheCamera:GetDownVec()
             local facedown = math.atan2(downvec.z, downvec.x) * (180/math.pi)
 
             self.inst.Transform:SetRotation(90-facedown)
 
             for i, v in ipairs(self.linked) do
                 v.Transform:SetRotation(90-facedown)
-                local color = self.can_build and _G.Vector3(.25, .75, .25) or _G.Vector3(.75, .25, .25)		
+                local color = self.can_build and Vector3(.25, .75, .25) or Vector3(.75, .25, .25)		
                 v.AnimState:SetAddColour(color.x, color.y, color.z, 1)
             end
         end
     end)
 
     local function FarmPlacerFix(inst, level)
-        inst.AnimState:SetOrientation(_G.ANIM_ORIENTATION.OnGround)
-        inst.AnimState:SetLayer(_G.LAYER_BACKGROUND)
+        inst.AnimState:SetOrientation(ANIM_ORIENTATION.OnGround)
+        inst.AnimState:SetLayer(LAYER_BACKGROUND)
         inst.AnimState:SetSortOrder(3)
 
         --Show decor on top of the ground placer
         for i, item_info in ipairs(decor_defs[level]) do
             for item_name, item_offsets in pairs(item_info) do
                 for j, offset in ipairs(item_offsets) do
-                    local item_inst = _G.SpawnPrefab(item_name)
+                    local item_inst = SpawnPrefab(item_name)
                     item_inst:AddTag("NOCLICK") --not all decor pieces come with NOCLICK by default
                     item_inst:AddTag("placer")
                     item_inst:AddTag("NOBLOCK")
                     item_inst.entity:SetCanSleep(false)
                     item_inst.entity:SetParent(inst.entity)
-                    item_inst.Transform:SetPosition(_G.unpack(offset))
+                    item_inst.Transform:SetPosition(unpack(offset))
                     item_inst.AnimState:SetLightOverride(1)
                     inst.components.placer:LinkEntity(item_inst)
                 end
@@ -1124,8 +1134,10 @@ if hasRoG then
     AddPrefabPostInit("slow_farmplot_placer", function(inst) FarmPlacerFix(inst, 2) end)
     AddPrefabPostInit("fast_farmplot_placer", function(inst) FarmPlacerFix(inst, 3) end)
 
+    ------------------------------------------------------------------------------------
+    
     local function FarmRotationFix(inst)
-        local downvec = _G.TheCamera:GetDownVec()
+        local downvec = TheCamera:GetDownVec()
         local facedown = math.atan2(downvec.z, downvec.x) * (180/math.pi)
 
         inst.Transform:SetRotation(90-facedown)
@@ -1137,4 +1149,439 @@ if hasRoG then
     AddPrefabPostInit("fast_farmplot", FarmRotationFix)
 end
 
+------------------------------------------------------------------------------------
 
+-- Werepigs will not de-transform at daytime if the cause of tranformation isn't full moon
+AddComponentPostInit("werebeast", function(self)
+    self.forced_were = false
+
+    local _events = GetWorld().event_listeners["daytime"][self.inst]
+    local _eventfn = _events[1]
+    _events[1] = function(world, data)
+        if not self.forced_were then
+            _eventfn(world, data)
+        end
+    end
+
+    local _TriggerDelta = self.TriggerDelta
+
+    function self:TriggerDelta(amount)
+        local _triggeramount = math.max(0, self.triggeramount + amount)
+        if _triggeramount >= self.triggerlimit then
+            self.forced_were = true
+        end
+        _TriggerDelta(self, amount)
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Mobs can now unfreeze by heat properly.
+AddComponentPostInit("freezable", function(self)
+    local _AddColdness = self.AddColdness
+    function self:AddColdness(coldness, ...)
+        if coldness < 0 and self:IsFrozen() then
+            self:Unfreeze()
+        else
+            _AddColdness(self, coldness, ...)
+        end
+    end
+end)
+
+local unfrezee_handler = EventHandler("unfreeze", function(inst)
+    if inst.sg.sg.states.hit then
+        inst.sg:GoToState("hit")
+    else
+        inst.sg:GoToState("idle")
+    end
+end)
+
+AddPrefabPostInitAny(function(inst)
+    if inst.sg and inst.sg.sg.states["frozen"] and inst.sg.sg.states["frozen"].events then
+        inst.sg.sg.states["frozen"].events["unfreeze"] = unfrezee_handler
+        inst.sg.sg.states["thaw"].events["unfreeze"] = unfrezee_handler
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+-- The mouse over selection for "statueharp" and "tigershark" will no longer be a giant box
+local function RemoveBBMouseOver(prefab)
+    AddPrefabPostInit(prefab, function(inst)
+        inst.AnimState:SetRayTestOnBB(false)
+    end)
+end
+
+RemoveBBMouseOver("statueharp")
+RemoveBBMouseOver("tigershark")
+
+------------------------------------------------------------------------------------
+
+-- Fix a crash related to build house doors with space bar (It's here because it can solve other similar issues)
+AddComponentPostInit("playercontroller", function(self)
+    local _DoActionButton = self.DoActionButton
+    function self:DoActionButton()
+        if self.placer_recipe and self.placer and self.placer.components.placer.can_build then
+            local modifydata = self.placer.components.placer.modifyfn and self.placer.components.placer.modifyfn(self.placer) or nil
+            self.inst.components.builder:MakeRecipe(self.placer_recipe, Vector3(self.placer.Transform:GetWorldPosition()), self.placer:GetRotation(), nil, modifydata)
+            return true
+        end
+
+        return _DoActionButton(self)
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Small change to prevent Lazy Explorer spam.
+AddStategraphPostInit("wilson", function(sg)
+    Hooks.sg.state.AddToggleMoviment(sg, "quicktele")
+end)
+
+local function blinkstaff_SpawnEffect(self, inst)
+    local x, y, z = inst.Transform:GetWorldPosition()
+    SpawnPrefab("sand_puff_large_back").Transform:SetPosition(x, y - .1, z)
+    SpawnPrefab("sand_puff_large_front").Transform:SetPosition(x, y, z)
+end
+
+AddComponentPostInit("blinkstaff", function(self)
+    self.SpawnEffect = blinkstaff_SpawnEffect
+end)
+
+local function CanAcceptItem(inventory, _item)
+    local can = false
+
+    if not inventory:IsFull() then
+        can = true
+
+    elseif _item.components.stackable then
+        local found_item = inventory:FindItem(function(item) 
+            return (item.prefab == _item.prefab and
+                    not item.components.stackable:IsFull() and
+                    item ~= inventory.activeitem) 
+        end)
+
+        can = found_item and true or can
+    end
+
+    return can
+end
+
+local ORANGE_PICKUP_MUST_TAGS = { "isinventoryitem" }
+local ORANGE_PICKUP_CANT_TAGS = {"sunken", "bookshelfed", "INLIMBO", "NOCLICK", "NOFORAGE", "catchable", "fire", "minesprung", "mineactive", "spider" }
+local function pickup(inst, owner)
+    if owner == nil or owner.components.inventory == nil then
+        return
+    end
+
+    local x, y, z = owner.Transform:GetWorldPosition()
+    local ents = TheSim:FindEntities(x, y, z, TUNING.ORANGEAMULET_RANGE, ORANGE_PICKUP_MUST_TAGS, ORANGE_PICKUP_CANT_TAGS)
+    local ba = owner:GetBufferedAction()
+
+    for i, v in ipairs(ents) do
+        if v.components.inventoryitem ~= nil and
+        v.components.inventoryitem.canbepickedup and
+        v.components.inventoryitem.cangoincontainer and
+        not v.components.inventoryitem:IsHeld() and
+        (ba == nil or ba.action ~= ACTIONS.PICKUP or ba.target ~= v) and
+        CanAcceptItem(owner.components.inventory, v) then
+
+            SpawnPrefab("sand_puff").Transform:SetPosition(v.Transform:GetWorldPosition())
+
+            inst.components.finiteuses:Use(1)
+
+            local v_pos = v:GetPosition()
+            if v.components.stackable ~= nil then
+                v = v.components.stackable:Get()
+            end
+
+            if v.components.trap ~= nil and v.components.trap:IsSprung() then
+                v.components.trap:Harvest(owner)
+            else
+                owner.components.inventory:GiveItem(v, nil, Vector3(TheSim:GetScreenPos(v_pos:Get())))
+            end
+
+            return
+        end
+    end
+end
+
+AddPrefabPostInit("orangeamulet", function(inst)
+    local _onequip = inst.components.equippable.onequipfn
+    inst.components.equippable:SetOnEquip(function(inst, owner)
+        _onequip(inst, owner)
+        inst.task:Cancel()
+        inst.task = inst:DoPeriodicTask(TUNING.ORANGEAMULET_ICD, function() pickup(inst, owner) end)
+    end)
+end)
+
+------------------------------------------------------------------------------------
+
+-- Bats will no longer "slip" after being killed.
+AddPrefabPostInit("bat", function(inst)
+    if MakeAmphibiousCharacterPhysics then
+        MakeAmphibiousCharacterPhysics(inst, 1, .5)
+    else
+        MakeCharacterPhysics(inst, 1, .5)
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Remove the collision after death for some mobs.
+local function RemovePhysicsOnDeath(state)
+    local _onenter = state.onenter
+
+    state.onenter = function(inst)
+        _onenter(inst)
+        inst.components.locomotor:Stop()
+        RemovePhysicsColliders(inst)
+    end
+end
+
+require("stategraphs/commonstates")
+
+local _AddCombatStates = CommonStates.AddCombatStates
+CommonStates.AddCombatStates = function(states, ...)
+    _AddCombatStates(states, ...)
+
+    for _, state in pairs(states) do
+        if state.name == "death" then
+            RemovePhysicsOnDeath(state)
+            break
+        end
+    end
+end
+
+local death_adjust_prefabs = {
+    "ballphin",
+    "bearger",
+    "dragonfly",
+    "koalefant_winter",
+    "koalefant_summer",
+    "krampus",
+    "minotaur",
+    "penguin",
+    "tungray",
+    "twister_seal",
+    "walrus",
+    "little_walrus",
+}
+
+for _, prefab in pairs(death_adjust_prefabs) do
+    AddPrefabPostInit(prefab, function(inst)
+        if inst.sg.sg.states["death"] then
+            RemovePhysicsOnDeath(inst.sg.sg.states["death"])
+        end
+    end)
+end
+
+------------------------------------------------------------------------------------
+
+if hasRoG then -- Crops don't wither when protected by flingo (flingo unloaded problem)
+
+    local function Crop_witherHandler(self, it, data) 
+        if self.witherable and not self.withered and not self.protected and data.temp > self.wither_temp then
+            self:MakeWithered()
+        end
+    end
+
+    local function Crop_OnEntitySleep(self)
+        self.inst:RemoveEventCallback("witherplants", self.witherHandler, GetWorld())
+    end
+
+    local function Crop_OnEntityWake(self)
+        local data = {temp = GetSeasonManager():GetCurrentTemperature()}
+        self:witherHandler(data)
+        self.inst:ListenForEvent("witherplants", self.witherHandler, GetWorld())
+    end
+
+
+    AddComponentPostInit("crop", function(self)
+        local inst = self.inst
+        if inst.event_listening then
+            inst.event_listening["witherplants"] = nil
+        end
+
+        self.witherHandler = Crop_witherHandler
+
+        self.OnEntitySleep = Crop_OnEntitySleep
+        self.OnEntityWake = Crop_OnEntityWake
+    end)
+end
+
+------------------------------------------------------------------------------------
+
+-- Fixes many problems caused by burn things with childspawner component.
+-- I need to overwrite the ignite fn because they remove the childspawner component.
+
+local function DefaultOnIgniteEventHandler(inst)
+    if inst.components.childspawner then
+        if inst.prefab == "wasphive" then
+            inst.components.childspawner:ReleaseAllChildren(nil, "killerbee")
+        else
+            inst.components.childspawner:ReleaseAllChildren()
+        end
+        inst.components.childspawner:StopSpawning()
+    end
+end
+
+AddPrefabPostInit("beebox", function(inst)
+    if inst.event_listeners and inst.event_listeners["onignite"] then
+        inst.event_listeners["onignite"][inst][1] = nil
+    end
+end)
+
+local function BeesOnIgnite(inst)
+    DefaultOnIgniteEventHandler(inst)
+    inst.SoundEmitter:KillSound("loop")
+    DefaultBurnFn(inst)
+end
+
+local function SpiderDenOnIgnite(inst)
+    if inst.components.childspawner then
+        inst.components.combat.onhitfn(inst)
+    end
+
+    inst.SoundEmitter:KillSound("loop")
+    DefaultBurnFn(inst)
+end
+
+local bee_stuctures = {"honeychest", "beehive", "wasphive", "beebox"}
+
+for _, prefab in pairs(bee_stuctures) do
+    AddPrefabPostInit(prefab, function(inst)
+        inst.components.burnable:SetOnIgniteFn(BeesOnIgnite)
+    end)
+end
+
+local spider_dens = {"", "_2", "_3"}
+
+for _, den_sufix in pairs(spider_dens) do
+    AddPrefabPostInit("spiderden"..den_sufix, function(inst)
+        inst.components.burnable:SetOnIgniteFn(SpiderDenOnIgnite)
+    end)
+end
+
+
+local function SlurtleHomeOnIgnite(inst)
+    inst.AnimState:PlayAnimation("shake", true)
+    inst.SoundEmitter:PlaySound("dontstarve/common/blackpowder_fuse_LP", "hiss")
+
+    if inst.components.childspawner then
+        inst.components.childspawner:ReleaseAllChildren()
+    end
+end
+
+local function SlurtleHome_onextinguish(inst, data)
+    inst.AnimState:PlayAnimation("idle", true)
+end
+
+AddPrefabPostInit("slurtlehole", function(inst)
+    inst.components.explosive:SetOnIgniteFn(SlurtleHomeOnIgnite)
+
+    inst:ListenForEvent("onextinguish", SlurtleHome_onextinguish)
+end)
+
+------------------------------------------------------------------------------------
+
+local function Explosive_onextinguish(inst)
+    inst.SoundEmitter:KillSound("hiss")
+    inst.SoundEmitter:KillSound("rattle")
+end
+
+-- Stop the sound if a active explosive is extinguished.
+AddComponentPostInit("explosive", function(self)
+    self.inst:ListenForEvent("onextinguish", Explosive_onextinguish)
+end)
+
+------------------------------------------------------------------------------------
+
+local monkey_houses = {"monkeybarrel", "primeapebarrel"}
+
+-- Add the release all function to monkey houses for consistency.
+for _, prefab in pairs(monkey_houses) do
+    AddPrefabPostInit(prefab, function(inst)
+        inst.components.burnable:SetOnIgniteFn(DefaultOnIgniteEventHandler)
+    end)
+end
+
+------------------------------------------------------------------------------------
+
+AddComponentPostInit("deployable", function(self)
+    self.deploydistance = 1
+end)
+
+local needDeploySpace = {
+    "spidereggsack",
+    "lureplantbulb",
+    "eyeturret_item",
+}
+
+local function AddDeployDistance(inst)
+    if inst.components.deployable then
+        inst.components.deployable.deploydistance = 1.5
+    end
+end
+
+-- Don't need to go exactly to pos to deploy.
+for _, prefab in pairs(needDeploySpace) do
+    AddPrefabPostInit(prefab, AddDeployDistance)
+end
+
+------------------------------------------------------------------------------------
+
+local BOUNCESTUFF_MUST_TAGS = { "isinventoryitem" }
+local BOUNCESTUFF_CANT_TAGS = { "locomotor", "INLIMBO" }
+
+local function ClearRecentlyBounced(inst, other)
+    inst.sg.mem.recentlybounced[other] = nil
+end
+
+local function SmallLaunch(inst, launcher, basespeed)
+    local hp = inst:GetPosition()
+    local pt = launcher:GetPosition()
+    local vel = (hp - pt):GetNormalized()
+    local speed = basespeed * 2 + 1.5
+    local angle = math.atan2(vel.z, vel.x) + (math.random() * 20 - 10) * DEGREES
+    inst.Physics:Teleport(hp.x, .1, hp.z)
+    inst.Physics:SetVel(math.cos(angle) * speed, 2.5 * speed + math.random(), math.sin(angle) * speed)
+
+    launcher.sg.mem.recentlybounced[inst.GUID] = true
+    launcher:DoTaskInTime(.6, ClearRecentlyBounced, inst.GUID)
+end
+
+local function BounceStuff(inst, point)
+    if inst.sg.mem.recentlybounced == nil then
+        inst.sg.mem.recentlybounced = {}
+    end
+    local ents = TheSim:FindEntities(point.x, point.y, point.z, 3, BOUNCESTUFF_MUST_TAGS, BOUNCESTUFF_CANT_TAGS)
+    for i, v in ipairs(ents) do
+        if v:IsValid() and 
+        v.components.inventoryitem and
+        not (v.components.inventoryitem.nobounce or inst.sg.mem.recentlybounced[v.GUID]) and
+        (not v.GetIsOnWater or not v:GetIsOnWater()) and
+        v.Physics ~= nil and
+        v.Physics:IsActive() then
+            local distsq = v:GetDistanceSqToPoint(inst:GetPosition())
+            local intensity = math.clamp((36 - distsq) / 27, 0, 1)
+            SmallLaunch(v, inst, intensity)
+        end
+    end
+end
+
+-- GroundPound now bounce items.
+AddComponentPostInit("groundpounder", function(self)
+    local _DestroyPoints = self.DestroyPoints
+    function self:DestroyPoints(points, ...)
+        _DestroyPoints(self, points, ...)
+
+        if self.inst.sg and not self.inst:HasTag("minotaur") and self.groundpoundfx ~= "firesplash_fx" then
+            for k,v in pairs(points) do
+                BounceStuff(self.inst, v)
+            end
+        end
+    end
+end)
+
+------------------------------------------------------------------------------------

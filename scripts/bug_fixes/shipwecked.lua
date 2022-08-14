@@ -1,16 +1,16 @@
 -- Spice Pack will not be invisible when the player isn't Warly.
-table.insert(Assets, Asset("ANIM", "anim/swap_chefpack.zip"))
-table.insert(Assets, Asset("ANIM", "anim/normal_ice.zip"))
+LoadAsset.Anim("swap_chefpack")
+LoadAsset.Anim("normal_ice")
 
 ------------------------------------------------------------------------------------
 
 if GetConfig("recipe") then
     -- Learn non-unlockable recipes + Wicker Science 1
     AddComponentPostInit("builder", function (self)
-        local _oldMakeRecipe = self.MakeRecipe
+        local _MakeRecipe = self.MakeRecipe
 
         function self:MakeRecipe(recipe, pt, rot, onsuccess, modifydata)
-            local makeRecipeSuccess = _oldMakeRecipe(self, recipe, pt, rot, onsuccess, modifydata)
+            local makeRecipeSuccess = _MakeRecipe(self, recipe, pt, rot, onsuccess, modifydata)
 
             if makeRecipeSuccess and not self.brainjellyhat then
                 self:AddRecipe(recipe.name)
@@ -23,16 +23,18 @@ end
 
 ------------------------------------------------------------------------------------
 
+local function RemoveWildboreInWater(inst)
+    if inst and inst.Transform and GetWorld() and GetMap() then
+        if inst:GetIsOnWater(inst:GetPosition():Get()) then
+            print("Finded a ".. inst.prefab .. " in the ocean! Removing him!")
+            inst:Remove()
+        end
+    end
+end
+
 -- Wilbore in water fix.
 AddPrefabPostInit("wildbore", function(inst)
-    inst:DoPeriodicTask(TUNING.TOTAL_DAY_TIME, function(inst)
-        if inst and inst.Transform and _G.GetWorld() and _G.GetMap() then
-            if inst:GetIsOnWater(inst:GetPosition():Get()) then
-                print("Finded a ".. inst.prefab .. " in the ocean! Removing him!")
-                inst:Remove()
-            end
-        end
-    end)
+    inst:DoPeriodicTask(TUNING.TOTAL_DAY_TIME, RemoveWildboreInWater)
 end)
 
 ------------------------------------------------------------------------------------
@@ -41,14 +43,14 @@ if GetConfig("shadowcreature") then
     -- Shadows's water spawn fix
     AddStategraphPostInit("shadowcreature", function(self)
         self.states["hit"].events.animover.fn = function(inst)
-            if _G.GetMap() then
+            if GetMap() then
                 local max_tries = 4
                 for k = 1, max_tries do
-                    local pos = _G.Vector3(inst.Transform:GetWorldPosition())
+                    local pos = Vector3(inst.Transform:GetWorldPosition())
                     local offset = 10
                     pos.x = pos.x + (math.random(2*offset)-offset)          
                     pos.z = pos.z + (math.random(2*offset)-offset)
-                    local tile = _G.GetMap():GetTileAtPoint(pos:Get())
+                    local tile = GetMap():GetTileAtPoint(pos:Get())
                     if tile ~= GROUND.IMPASSABLE and inst:IsPosSurroundedByLand(pos.x, pos.y, pos.z, 2) then
                         inst.Transform:SetPosition(pos:Get())
                         break
@@ -70,7 +72,6 @@ if GetConfig("limpet") then
 end
 
 ------------------------------------------------------------------------------------
-local COLLISION = _G.COLLISION
 
 if GetConfig("bee") then
     local function FlyOverWater(inst)
@@ -81,7 +82,7 @@ if GetConfig("bee") then
         inst.Physics:ClearCollisionMask()
         
         if hasHAM then
-            _G.SetAquaticEntityCollision(inst)
+            SetAquaticEntityCollision(inst)
             inst.Physics:CollidesWith(COLLISION.INTWALL)
         else
             inst.Physics:CollidesWith(COLLISION.GROUND)
@@ -130,32 +131,33 @@ end
 ------------------------------------------------------------------------------------
 
 if GetConfig("butterfly") then
-    local notags = {'NOBLOCK', 'player', 'FX'}
-    local function test_ground(inst, pt)
-        local tiletype = _G.GetGroundTypeAtPosition(pt)
-        
-        local notiles = {
-            GROUND.ROCKY, GROUND.ROAD,  GROUND.IMPASSABLE, GROUND.UNDERROCK,
-            GROUND.BRICK_GLOW, GROUND.WOODFLOOR, GROUND.MAGMAFIELD, GROUND.CARPET,
-            GROUND.CHECKER, GROUND.ASH, GROUND.VOLCANO, GROUND.VOLCANO_ROCK,
-        }
+    local butterfly_notiles = {
+        GROUND.ROCKY, GROUND.ROAD,  GROUND.IMPASSABLE, GROUND.UNDERROCK,
+        GROUND.BRICK_GLOW, GROUND.WOODFLOOR, GROUND.MAGMAFIELD, GROUND.CARPET,
+        GROUND.CHECKER, GROUND.ASH, GROUND.VOLCANO, GROUND.VOLCANO_ROCK,
+    }
+    
+    if hasHAM then
+        table.insert(butterfly_notiles, GROUND.INTERIOR)
+    end
 
-        if hasHAM then
-            table.insert(notiles, GROUND.INTERIOR)
-        end
-        
-        if table.contains(notiles, tiletype)
-        or _G.GetMap():IsWater(tiletype)
+    local notags = {'NOBLOCK', 'player', 'FX'}
+
+    local function test_ground(inst, pt)
+        local tiletype = GetGroundTypeAtPosition(pt)
+
+        if table.contains(butterfly_notiles, tiletype)
+        or GetMap():IsWater(tiletype)
         or  tiletype > GROUND.UNDERGROUND then
             return false
         end
 
-        local ents = _G.TheSim:FindEntities(pt.x,pt.y,pt.z, 4, nil, notags)
+        local ents = TheSim:FindEntities(pt.x,pt.y,pt.z, 4, nil, notags)
         local min_spacing = inst.components.deployable.min_spacing or 2
 
         for k, v in pairs(ents) do
             if v ~= inst and v:IsValid() and v.entity:IsVisible() and not v.components.placer and v.parent == nil then
-                if _G.distsq(_G.Vector3(v.Transform:GetWorldPosition()), pt) < min_spacing*min_spacing then
+                if distsq(Vector3(v.Transform:GetWorldPosition()), pt) < min_spacing*min_spacing then
                     return false
                 end
             end
@@ -173,7 +175,7 @@ end
 ------------------------------------------------------------------------------------
 
 AddStategraphPostInit("wilsonboating", function(self)
-    HookSG_StatePost(self, "use_fan", "onenter", function(inst, arg)
+    Hooks.sg.state.onenter.Post(self, "use_fan", function(inst, arg)
         local fan = inst:GetBufferedAction().invobject
         if fan then -- Fix Doydoy Fan Texture on boat
             inst.AnimState:OverrideSymbol("fan01", fan.animinfo, "fan01")
@@ -190,22 +192,22 @@ end)
 
 ------------------------------------------------------------------------------------
 
-local function GetSpawnPoint(pt)
-    local theta = math.random() * 2 * _G.PI
+local function LocalGetSpawnPoint(pt)
+    local theta = math.random() * 2 * PI
     local radius = 30
 
-    local offset = _G.FindWalkableOffset(pt, theta, radius, 12, true)
+    local offset = FindWalkableOffset(pt, theta, radius, 12, true)
     if offset then
         return pt+offset
     end
 end
 
 local function SpawnPackim(inst) -- Local function and I can't get with UpvalueHacker :(
-    local pt = _G.Vector3(inst.Transform:GetWorldPosition())
-    local spawn_pt = hasHAM and _G.GetSpawnPoint(inst, pt) or GetSpawnPoint(pt)
+    local pt = Vector3(inst.Transform:GetWorldPosition())
+    local spawn_pt = hasHAM and GetSpawnPoint(inst, pt) or LocalGetSpawnPoint(pt)
 
     if spawn_pt then
-        local packim = _G.SpawnPrefab("packim")
+        local packim = SpawnPrefab("packim")
         if packim then
             packim.Physics:Teleport(spawn_pt:Get())
             packim:FacePoint(pt.x, pt.y, pt.z)
@@ -215,70 +217,84 @@ local function SpawnPackim(inst) -- Local function and I can't get with UpvalueH
     end
 end
 
--- Packim's FishBone only lure and checks for Packim
-AddPrefabPostInit("packim_fishbone", function(inst)
-    local _RebindPackim = UpvalueHacker.GetUpvalue(inst.fixtask.fn, "FixPackim", "RebindPackim")
-
-    local function RebindPackim(inst, packim)
-        packim = packim or _G.TheSim:FindFirstEntityWithTag("packim")
+local function RebindPackim(_RebindPackim)
+    return function(inst, packim)
+        packim = packim or TheSim:FindFirstEntityWithTag("packim")
         if packim then
             _RebindPackim(inst, packim)
         end
     end
-    UpvalueHacker.SetUpvalue(inst.fixtask.fn, RebindPackim, "FixPackim", "RebindPackim")
+end
 
-    --------------------
-
-    local StopRespawn = UpvalueHacker.GetUpvalue(inst.OnPackimDeath, "StartRespawn", "StopRespawn")
-
-    local function RespawnPackim(inst)
+local function RespawnPackim(StopRespawn, RebindPackim)
+    return function(inst)
         StopRespawn(inst)
-    
-        local packim = _G.TheSim:FindFirstEntityWithTag("packim")
+
+        local packim = TheSim:FindFirstEntityWithTag("packim")
         if not packim then
             packim = SpawnPackim(inst)
         end
         RebindPackim(inst, packim)
     end
-    UpvalueHacker.SetUpvalue(inst.OnPackimDeath, RespawnPackim, "StartRespawn", "RespawnPackim")
+end
+
+-- Packim's FishBone only lure and checks for Packim
+AddPrefabPostInit("packim_fishbone", function(inst)
+    local _RebindPackim = UpvalueHacker.GetUpvalue(inst.fixtask.fn, "FixPackim", "RebindPackim")
+
+    UpvalueHacker.SetUpvalue(inst.fixtask.fn, RebindPackim(_RebindPackim), "FixPackim", "RebindPackim")
+
+    --------------------
+
+    local StopRespawn = UpvalueHacker.GetUpvalue(inst.OnPackimDeath, "StartRespawn", "StopRespawn")
+
+    UpvalueHacker.SetUpvalue(inst.OnPackimDeath, RespawnPackim(StopRespawn, _RebindPackim), "StartRespawn", "RespawnPackim")
 end)
 
 ------------------------------------------------------------------------------------
+
+local SwordFish_CHASE_DIST = 40
+
+local function SwordFishKeepTargetFn(_keepTarget)
+    return function(inst, target)
+        local shouldkeep = _keepTarget(inst, target)
+
+        if shouldkeep then
+            local home = inst.components.knownlocations:GetLocation("home")
+            local isnearhome = inst:GetDistanceSqToPoint(home) <= SwordFish_CHASE_DIST * SwordFish_CHASE_DIST
+
+            return isnearhome
+        end
+
+        return shouldkeep
+    end
+end
 
 -- Sword Fish will no longer chase its target forever.
 AddPrefabPostInit("swordfish", function(inst)
-    local CHASE_DIST = 40 -- From swordfishbrain.lua
     local _keepTarget = inst.components.combat.keeptargetfn
 
-    inst.components.combat:SetKeepTargetFunction(
-        function(inst, target)
-            local shouldkeep = _keepTarget(inst, target)
-
-            if shouldkeep then
-                local home = inst.components.knownlocations:GetLocation("home")
-                local isnearhome = inst:GetDistanceSqToPoint(home) <= CHASE_DIST*CHASE_DIST
-
-                return isnearhome
-            end
-
-            return shouldkeep
-        end
-    )
+    inst.components.combat:SetKeepTargetFunction(SwordFishKeepTargetFn(_keepTarget))
 end)
 
 ------------------------------------------------------------------------------------
 
+local function UpdateFishAnims(inst)
+    if inst.components.floatable.landanim ~= "dead" then
+        inst.components.floatable:UpdateAnimations(nil, "dead")
+    end 
+end
 local function CommonFishFix(inst)
-    inst.components.floatable:UpdateAnimations(nil, "idle")
-    inst.OnLoad = function() inst.components.floatable:UpdateAnimations(nil, "dead") end
-
-    inst.components.inventoryitem:SetOnPickupFn(
-        function()
-            if inst.components.floatable.landanim ~= "dead" then
-                inst.components.floatable:UpdateAnimations(nil, "dead")
-            end
+    for task, _ in pairs(inst.pendingtasks) do
+        if task.period == 5 then
+            task.fn = UpdateFishAnims
         end
-    )
+    end
+
+    inst.components.floatable:UpdateAnimations(nil, "idle")
+    inst.OnLoad = UpdateFishAnims
+
+    inst.components.inventoryitem:SetOnPickupFn(UpdateFishAnims)
 end
 
 -- Fixes fish dropped in land anim, which was causing an early dead anim.
@@ -290,9 +306,9 @@ for _, n in ipairs({3,4,5}) do
     AddPrefabPostInit("fish"..n, function(inst)
         CommonFishFix(inst)
 
-        inst:DoTaskInTime(1, function() inst.AnimState:PlayAnimation("dead") end) -- Only used in console spawn, but I'll left it here.
+        inst:DoTaskInTime(1, UpdateFishAnims) -- Only used in console spawn, but I'll left it here.
 
-        _G.MakeBlowInHurricane(inst, TUNING.WINDBLOWN_SCALE_MIN.MEDIUM, TUNING.WINDBLOWN_SCALE_MAX.MEDIUM)
+        MakeBlowInHurricane(inst, TUNING.WINDBLOWN_SCALE_MIN.MEDIUM, TUNING.WINDBLOWN_SCALE_MAX.MEDIUM)
   
         inst:AddComponent("appeasement")
         inst.components.appeasement.appeasementvalue = TUNING.APPEASEMENT_TINY
@@ -321,60 +337,64 @@ end)
 
 ------------------------------------------------------------------------------------
 
+local function MoveBoatOnUpdate(self)
+    if self.vehicle ~= nil and self.vehicle:IsValid() then 
+        local CameraRight = TheCamera:GetRightVec()
+        local CameraDown = TheCamera:GetDownVec()
+        
+        local myPos = self.inst:GetPosition()
+        local displacement = CameraRight:Cross(CameraDown) * 0.05
+
+        local pos = myPos - displacement
+
+        self.vehicle.Transform:SetPosition(pos:Get())
+    end
+end
+
 -- Litle change to boat position to work properly with the bundling anim hack
 AddComponentPostInit("driver", function(self)
     local _OnUpdate = self.OnUpdate
     function self:OnUpdate(dt)
         _OnUpdate(self, dt)
-        if self.vehicle ~= nil and self.vehicle:IsValid() then 
-            local CameraRight = _G.TheCamera:GetRightVec()
-            local CameraDown = _G.TheCamera:GetDownVec()
-            
-            local myPos = self.inst:GetPosition()
-            local displacement = CameraRight:Cross(CameraDown) * 0.05
-
-            local pos = myPos - displacement
-
-            self.vehicle.Transform:SetPosition(pos:Get())
-        end
+        MoveBoatOnUpdate(self)
     end
 end)
 
 ------------------------------------------------------------------------------------
 
-AddStategraphActionHandler("wilsonboating", _G.ActionHandler(_G.ACTIONS.UNWRAP, "dolongaction"))
-AddStategraphActionHandler("wilsonboating", _G.ActionHandler(_G.ACTIONS.BUNDLE, "bundle"))
+AddStategraphActionHandler("wilsonboating", ActionHandler(ACTIONS.UNWRAP, "dolongaction"))
+AddStategraphActionHandler("wilsonboating", ActionHandler(ACTIONS.BUNDLE, "bundle"))
 
 local SGwilson = require("stategraphs/SGwilson")
+package.loaded["stategraphs/SGwilson"] = nil -- Unload the file
+
+local function ShowBoat(inst, arg)
+    local vehicle = inst.components.driver.vehicle
+    return vehicle and vehicle:Show()
+end
+
+local function HideBoat(inst, arg)
+    local vehicle = inst.components.driver.vehicle
+    return vehicle and vehicle:Hide()
+end
 
 -- Add the bundling states to boating + hacky to show the boat with the anim (bundling anim don't have boat symbol)
 AddStategraphPostInit("wilsonboating", function(sg)
     for i, state in ipairs({"bundle", "bundling", "bundle_pst"}) do
 
-        sg.states[state] = _G.deepcopy(SGwilson.states[state])
+        sg.states[state] = deepcopy(SGwilson.states[state])
         AddTagToState(sg, state, "boating")
 
         if GetConfig("bundle_fx") then -- Don't need this for build anim
-            local function ShowBoat(inst, arg)
-                local vehicle = inst.components.driver.vehicle
-                return vehicle and vehicle:Show()
-            end
-
-            local function HideBoat(inst, arg)
-                local vehicle = inst.components.driver.vehicle
-                return vehicle and vehicle:Hide()
-            end
-
-            HookSG_StatePost(sg, state, "onenter", ShowBoat)
-            HookSG_StatePost(sg, state, "onexit",  HideBoat)
+            Hooks.sg.state.Onenter_Onexit(sg, state, ShowBoat, HideBoat)
         end
     end
 
     ------------------------------------------------------------------------------------
 
     -- Fix invisible boat on telebrella teleport
-    HookSG_StatePost(sg, "telebrella", "onenter", function(inst, arg)
-        local downvec = _G.TheCamera:GetDownVec()
+    Hooks.sg.state.onenter.Post(sg, "telebrella", function(inst, arg)
+        local downvec = TheCamera:GetDownVec()
         local facedown = -(math.atan2(downvec.z, downvec.x) * (180/math.pi))
         local vehicle = inst.components.driver.vehicle
         if vehicle then
@@ -390,7 +410,7 @@ end)
 -- Inspired by skittles sour's mod: https://steamcommunity.com/sharedfiles/filedetails/?id=2635513673
 AddPlayerPostInit(function(inst)
     inst:DoTaskInTime(0, function()
-        if not _G.GetWorld():IsVolcano() then return end
+        if not GetWorld():IsVolcano() then return end
         
         -- Fix Boat speed multipliers when climb volcano.
         inst.components.locomotor:RemoveSpeedModifier_Additive("DRIVER")
@@ -401,44 +421,43 @@ end)
 
 ------------------------------------------------------------------------------------
 
--- Fix Coconut being cutted in inventory by weather pain
--- + ajust work rate
-AddStategraphPostInit("tornado", function(self)
-    local function destroystuff(inst)
-        local x, y, z = inst.Transform:GetWorldPosition()
-        local ents = _G.TheSim:FindEntities(x, y, z, 3, nil, {"INLIMBO"}) -- Inlimbo = in inventory
-        for i, v in ipairs(ents) do
-            if v ~= inst.WINDSTAFF_CASTER and v:IsValid() then
-                if v.components.health ~= nil and
-                not v.components.health:IsDead() and
-                v.components.combat ~= nil then
-                    v.components.combat:GetAttacked(inst, TUNING.TORNADO_DAMAGE)
-                    if v:IsValid() and
-                        inst.WINDSTAFF_CASTER ~= nil and inst.WINDSTAFF_CASTER:IsValid() and
-                        v.components.combat ~= nil and
-                        not (v.components.health ~= nil and v.components.health:IsDead()) and
-                        not (v.components.follower ~= nil and
-                            v.components.follower.keepleaderonattacked and
-                            v.components.follower:GetLeader() == inst.WINDSTAFF_CASTER) then
-                        v.components.combat:SuggestTarget(inst.WINDSTAFF_CASTER)
-                    end
-
-                elseif v.components.workable ~= nil and
-                v.components.workable.workleft > 0 and
-                not table.contains({_G.ACTIONS.NET, _G.ACTIONS.FISH}, v.components.workable:GetWorkAction()) then
-                    _G.SpawnPrefab("collapse_small").Transform:SetPosition(v.Transform:GetWorldPosition())
-                    v.components.workable:WorkedBy(inst, 2)
+local function destroystuff(inst)
+    local x, y, z = inst.Transform:GetWorldPosition()
+    local ents = TheSim:FindEntities(x, y, z, 3, nil, {"INLIMBO"}) -- Inlimbo = in inventory
+    for i, v in ipairs(ents) do
+        if v ~= inst.WINDSTAFF_CASTER and v:IsValid() then
+            if v.components.health ~= nil and
+            not v.components.health:IsDead() and
+            v.components.combat ~= nil then
+                v.components.combat:GetAttacked(inst, TUNING.TORNADO_DAMAGE)
+                if v:IsValid() and
+                    inst.WINDSTAFF_CASTER ~= nil and inst.WINDSTAFF_CASTER:IsValid() and
+                    v.components.combat ~= nil and
+                    not (v.components.health ~= nil and v.components.health:IsDead()) and
+                    not (v.components.follower ~= nil and
+                        v.components.follower.keepleaderonattacked and
+                        v.components.follower:GetLeader() == inst.WINDSTAFF_CASTER) then
+                    v.components.combat:SuggestTarget(inst.WINDSTAFF_CASTER)
                 end
 
-                if v and v.components.hackable and v.components.hackable.hacksleft > 0 then
-                    _G.SpawnPrefab("collapse_small").Transform:SetPosition(v:GetPosition():Get())
-                    v.components.hackable:Hack(inst, 2)
-        
-                end
+            elseif v.components.workable ~= nil and
+            v.components.workable.workleft > 0 and
+            not table.contains({ACTIONS.NET, ACTIONS.FISH}, v.components.workable:GetWorkAction()) then
+                SpawnPrefab("collapse_small").Transform:SetPosition(v.Transform:GetWorldPosition())
+                v.components.workable:WorkedBy(inst, 2)
+            end
+
+            if v and v.components.hackable and v.components.hackable.hacksleft > 0 then
+                SpawnPrefab("collapse_small").Transform:SetPosition(v:GetPosition():Get())
+                v.components.hackable:Hack(inst, 2)
             end
         end
     end
+end
 
+-- Fix Coconut being cutted in inventory by weather pain
+-- + ajust work rate
+AddStategraphPostInit("tornado", function(self)
     UpvalueHacker.SetUpvalue(self.states["idle"].onenter, destroystuff, "destroystuff")
     UpvalueHacker.SetUpvalue(self.states["walk"].onenter, destroystuff, "destroystuff")
 
@@ -452,7 +471,7 @@ end)
 local function FenceDeployFixes(inst)
     -- Fence/gate deploy distance like walls
     inst.components.deployable:SetQuantizeFunction(function(pt)
-        return _G.Vector3(math.floor(pt.x)+.5, 0, math.floor(pt.z)+.5)
+        return Vector3(math.floor(pt.x)+.5, 0, math.floor(pt.z)+.5)
     end)
 
     inst.components.deployable.deploydistance = 1.5 -- (Deploy distance don't exist before SW)
@@ -471,21 +490,19 @@ AddPrefabPostInit("fence_gate_item", FenceDeployFixes)
 
 ------------------------------------------------------------------------------------
 
--- Coconut TreeGuard stats scale with his size scale properly. (See TG spawn in palmtrees.lua for details)
-AddPrefabPostInit("treeguard", function(inst)
-    local _SetRange = inst.SetRange
-    local _SetMelee = inst.SetMelee
-
-    inst.SetRange =  function(inst)
+local function TreeGuardRange(_SetRange)
+    return function(inst)
         if inst.combatmode == "RANGE" then return end
         
         _SetRange(inst)
-
+        
         local scale = inst.Transform:GetScale()
         inst.components.combat:SetRange(20*scale, 25*scale)
     end
+end
 
-    inst.SetMelee = function(inst)
+local function TreeGuardMeele(_SetMelee)
+    return function(inst)
         if inst.combatmode == "MELEE" then return end
         
         _SetMelee(inst)
@@ -495,6 +512,16 @@ AddPrefabPostInit("treeguard", function(inst)
 
         inst.components.combat:SetDefaultDamage(scale*TUNING.PALMTREEGUARD_DAMAGE)
     end
+end
+
+-- Coconut TreeGuard stats scale with his size scale properly. (See TG spawn in palmtrees.lua for details)
+AddPrefabPostInit("treeguard", function(inst)
+    local _SetRange = inst.SetRange
+    local _SetMelee = inst.SetMelee
+
+    inst.SetRange = TreeGuardRange(_SetRange)
+
+    inst.SetMelee = TreeGuardMeele(_SetMelee)
 end)
 
 ------------------------------------------------------------------------------------
@@ -504,7 +531,7 @@ if GetConfig("lava") then
     AddComponentPostInit("terraformer", function(self)
         local _CanTerraformPoint = self.CanTerraformPoint
         function self:CanTerraformPoint(pt)
-            local tile = _G.GetMap():GetTileAtPoint(pt.x, pt.y, pt.z)
+            local tile = GetMap():GetTileAtPoint(pt.x, pt.y, pt.z)
             return _CanTerraformPoint(self, pt) and tile ~= GROUND.VOLCANO_LAVA
         end
     end)
@@ -532,14 +559,14 @@ end)
 ------------------------------------------------------------------------------------
 
 if GetConfig("fishfarm") then
-    -- Fix crocodog's attacks to fish farm. (Klei wrote luretask instead of lureTask)
+    -- Fixes crocodog's attacks to fish farm. (Klei wrote luretask instead of lureTask)
     AddComponentPostInit("breeder", function(self)
         local _OnSave = self.OnSave
         function self:OnSave()
             local data = _OnSave(self)
 
             if self.lureTask then
-                data.luretasktime = _G.GetTaskRemaining(self.lureTask)
+                data.luretasktime = GetTaskRemaining(self.lureTask)
                 data.luretask = data.luretasktime -- Other misswrite
             end
 
@@ -550,19 +577,19 @@ end
 
 ------------------------------------------------------------------------------------
 
--- Fix Fish Farm's Sign over the boat.
+-- Fixes Fish Farm's Sign over the boat.
 AddPrefabPostInit("fish_farm_sign", function(inst)
-    inst.AnimState:SetLayer(_G.LAYER_BACKGROUND)
+    inst.AnimState:SetLayer(LAYER_BACKGROUND)
     inst.AnimState:SetSortOrder(3)
 end)
 
 ------------------------------------------------------------------------------------
 
 if GetConfig("speed") then
-    -- Fix character specials speed modifieres in World Reset
+    -- Fixes character specials speed modifieres in World Reset
     AddComponentPostInit("locomotor", function(self)
         function self:OnProgress()
-            if _G.SaveGameIndex:GetCurrentMode(_G.Settings.save_slot) ~= "adventure" then
+            if SaveGameIndex:GetCurrentMode(Settings.save_slot) ~= "adventure" then
                 self.noserial = true
             end
         end
@@ -579,10 +606,10 @@ end
 
 ------------------------------------------------------------------------------------
 
--- Cure the poison after World Reset.
+-- Cures the poison after World Reset.
 AddComponentPostInit("poisonable", function(self)
     function self:OnProgress()
-        if _G.SaveGameIndex:GetCurrentMode(_G.Settings.save_slot) ~= "adventure" then
+        if SaveGameIndex:GetCurrentMode(Settings.save_slot) ~= "adventure" then
             self:Cure()
         end 
     end
@@ -590,37 +617,41 @@ end)
 
 ------------------------------------------------------------------------------------
 
--- Fix Boat Knight and Palm Tree Guard's "fake" ranged attack
+local TreeGuardThrowTimeline = {
+    TimeEvent( 0       , function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/palm_tree_guard/tree_movement") end),
+    TimeEvent(05*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/palm_tree_guard/attack") end),
+    TimeEvent(22*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/palm_tree_guard/tree_movement") end),
+    TimeEvent(25*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/palm_tree_guard/coconut_throw") end),
+    TimeEvent(25*FRAMES, function(inst) inst:PushEvent("onattackother", {target=inst.sg.statemem.target}) end),
+    TimeEvent(26*FRAMES, function(inst) inst.sg:RemoveStateTag("attack") end),
+}
+
+local KnightBoatAttackTimeline = {
+    TimeEvent( 0, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/knight_steamboat/attack") end),
+    TimeEvent(25*FRAMES, function(inst) inst:PushEvent("onattackother", {target=inst.sg.statemem.target or inst.components.combat.target}) end),
+    TimeEvent(31*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/knight_steamboat/cannon") end),
+}
+
+-- Fixes Boat Knight and Palm Tree Guard's "fake" ranged attack
 AddStategraphPostInit("treeguard", function(self)
-    self.states["throw"].timeline = {
-        TimeEvent( 0       , function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/palm_tree_guard/tree_movement") end),
-        TimeEvent(05*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/palm_tree_guard/attack") end),
-        TimeEvent(22*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/palm_tree_guard/tree_movement") end),
-        TimeEvent(25*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/palm_tree_guard/coconut_throw") end),
-        TimeEvent(25*FRAMES, function(inst) inst:PushEvent("onattackother", {target=inst.sg.statemem.target}) end),
-        TimeEvent(26*FRAMES, function(inst) inst.sg:RemoveStateTag("attack") end),
-    }
+    self.states["throw"].timeline = TreeGuardThrowTimeline
 end)
 
 AddStategraphPostInit("knightboat", function(self)
-    self.states["attack"].timeline = {
-        TimeEvent( 0, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/knight_steamboat/attack") end),
-        TimeEvent(25*FRAMES, function(inst) inst:PushEvent("onattackother", {target=inst.sg.statemem.target or inst.components.combat.target}) end),
-        TimeEvent(31*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/knight_steamboat/cannon") end),
-    }
+    self.states["attack"].timeline = KnightBoatAttackTimeline
 end)
 
 ------------------------------------------------------------------------------------
 
--- Fix little glitch with meteor ground fx.
+-- Fixes litle glitch with meteor ground fx.
 AddPrefabPostInit("meteor_impact", function(inst)
-    inst.AnimState:SetLayer(_G.LAYER_BACKGROUND)
+    inst.AnimState:SetLayer(LAYER_BACKGROUND)
     inst.AnimState:SetSortOrder(3)
 end)
 
 ------------------------------------------------------------------------------------
 
--- Fix "ghost" hail/ice caused by save-exiting when it's disappearing.
+-- Fixes "ghost" hail/ice caused by save-exiting when it's disappearing.
 local function FixIce(inst)
     local _OnLoad = inst.OnLoad
     inst.OnLoad = function(inst, data)
@@ -646,14 +677,16 @@ end)
 -- Original OnLoad check if the item is on water, but all items spawn at 0,0,0 (possible water)
 -- before going to inventory. So shitty things happens.
 
+local function floatable_OnLoad(self, data)
+    if data and data.onwater then
+        self:OnHitWater(true)
+    else 
+        self:OnHitLand(true)
+    end
+end
+
 AddComponentPostInit("floatable", function(self)
-    function self:OnLoad(data)
-        if data and data.onwater then
-            self:OnHitWater(true)
-        else 
-            self:OnHitLand(true)
-        end
-    end 
+    self.OnLoad = floatable_OnLoad
 end)
 
 AddComponentPostInit("inventoryitem", function(self)
@@ -670,13 +703,19 @@ end)
 ------------------------------------------------------------------------------------
 
 -- Some Staffs can now cast on land when the player in the ocean.
-_G.ACTIONS.CASTSPELL.crosseswaterboundary = true
+ACTIONS.CASTSPELL.crosseswaterboundary = true
 
 ------------------------------------------------------------------------------------
 
--- Stop packim from attacking Webber :(
 AddPrefabPostInit("packim", function(inst)
+    -- Stop packim from attacking Webber :(
     inst.components.combat.notags = {"player"}
+
+    -- Stop triggring spider web and being slowed down by it.
+    inst:AddTag("flying")
+    inst.components.locomotor:EnableGroundSpeedMultiplier(false)
+    inst.components.locomotor:SetTriggersCreep(false)
+    inst.components.locomotor.pathcaps = {ignorecreep = true}
 end)
 
 ------------------------------------------------------------------------------------
@@ -689,7 +728,7 @@ end)
 ------------------------------------------------------------------------------------
 
 local function SetBlankAction(inst)
-    inst.components.workable:SetWorkAction(_G.ACTIONS.BLANK)
+    inst.components.workable:SetWorkAction(ACTIONS.BLANK)
 end
 
 -- Obsidian Rock and Dragoon Den can now be destroyed by living artifact.
@@ -700,8 +739,8 @@ AddPrefabPostInit("dragoonden", SetBlankAction)
 
 -- Sealnado cann't grab the player if mounted.
 AddStategraphPostInit("twister", function(sg)
-    HookSG_StatePost(sg, "vacuum_loop", "onenter", function(inst, arg)
-        if _G.GetPlayer().components.rider:IsRiding() then
+    Hooks.sg.state.onenter.Post(sg, "vacuum_loop", function(inst, arg)
+        if GetPlayer().components.rider:IsRiding() then
             inst.components.vacuum.ignoreplayer = true
         end
     end)
@@ -715,10 +754,10 @@ AddPrefabPostInit("greenstaff", function(inst)
     inst.components.spellcaster.spell = function(staff, target)
         _spell(staff, target)
         local pt = target:GetPosition()
-        local ents = _G.TheSim:FindEntities(pt.x,pt.y,pt.z, 5, {"isinventoryitem"}, {"INLIMBO", "NOCLICK", "FX"})
+        local ents = TheSim:FindEntities(pt.x,pt.y,pt.z, 5, {"isinventoryitem"}, {"INLIMBO", "NOCLICK", "FX"})
 
         for _, ent in ipairs(ents) do
-            if ent.spawntime > _G.GetTime() - 3 then
+            if ent:GetTimeAlive() < 2 then
                 ent.components.inventoryitem:OnLootDropped(0)
             end
         end
@@ -737,47 +776,50 @@ end)
 
 -- Throw poop with Wilbur will not cause reflective damage.
 -- + effect for landing in water.
+
+local function PoopOnThrown(inst, thrower, pt)
+    inst.flies:Remove()
+    inst:RemoveComponent("inventoryitem")
+
+    inst:AddTag("thrown")
+    inst:AddTag("projectile")
+
+    inst.AnimState:SetBank("monkey_projectile")
+    inst.AnimState:SetBuild("monkey_projectile")
+    inst.AnimState:PlayAnimation("idle", true)
+
+    inst.Physics:SetFriction(.2)
+
+    inst.GroundTask = inst:DoPeriodicTask(FRAMES, function()
+        local pos = inst:GetPosition()
+        if pos.y <= 0.5 then
+            local ents = TheSim:FindEntities(pos.x, pos.y, pos.z, 1.5, nil, {"FX", "NOCLICK", "DECOR", "INLIMBO"})
+
+            for k,v in pairs(ents) do
+                if v.components.combat then
+                    v.components.combat:GetAttacked(thrower, TUNING.POOP_THROWN_DAMAGE, inst)
+                end
+            end
+
+            local fx = "poop_splat"
+
+            if inst:GetIsOnWater() then
+                inst.SoundEmitter:PlaySound("dontstarve_DLC002/common/item_sink")
+                fx =  "splash_water_sink"
+            end
+
+            local pt = inst:GetPosition()
+            SpawnPrefab(fx).Transform:SetPosition(pt:Get())
+
+            inst:Remove()
+        end
+    end)
+end
+
 AddPrefabPostInit("poop", function(inst)
     if not inst.components.equippable then return end
 
-    inst.components.throwable.onthrown = function(inst, thrower, pt)
-        inst.flies:Remove()
-        inst:RemoveComponent("inventoryitem")
-
-        inst:AddTag("thrown")
-        inst:AddTag("projectile")
-
-        inst.AnimState:SetBank("monkey_projectile")
-        inst.AnimState:SetBuild("monkey_projectile")
-        inst.AnimState:PlayAnimation("idle", true)
-
-        inst.Physics:SetFriction(.2)
-
-        inst.GroundTask = inst:DoPeriodicTask(FRAMES, function()
-            local pos = inst:GetPosition()
-            if pos.y <= 0.5 then
-                local ents = _G.TheSim:FindEntities(pos.x, pos.y, pos.z, 1.5, nil, {"FX", "NOCLICK", "DECOR", "INLIMBO"})
-
-                for k,v in pairs(ents) do
-                    if v.components.combat then
-                        v.components.combat:GetAttacked(thrower, TUNING.POOP_THROWN_DAMAGE, inst)
-                    end
-                end
-
-                local fx = "poop_splat"
-
-                if inst:GetIsOnWater() then
-                    inst.SoundEmitter:PlaySound("dontstarve_DLC002/common/item_sink")
-                    fx =  "splash_water_sink"
-                end
-
-                local pt = inst:GetPosition()
-                _G.SpawnPrefab(fx).Transform:SetPosition(pt:Get())
-
-                inst:Remove()
-            end
-        end)
-    end
+    inst.components.throwable.onthrown = PoopOnThrown
 end)
 
 ------------------------------------------------------------------------------------
@@ -802,7 +844,7 @@ end)
 ------------------------------------------------------------------------------------
 
 local function FixAnimOnSpawn(inst, arg)
-    if inst.spawntime > _G.GetTime() - 3 then
+    if inst:GetTimeAlive() < 3 then
         if not inst:GetIsOnWater() then
             inst.AnimState:SetBank("ox")
         end
@@ -819,15 +861,15 @@ end
 
 -- Fixes animation on spawn of oxs.
 AddStategraphPostInit("ox", function(sg)
-    HookSG_StatePost(sg, "emerge", "onenter", FixAnimOnSpawn)
-    HookSG_StatePost(sg, "submerge", "onenter", FixAnimOnSpawn)
+    Hooks.sg.state.onenter.Post(sg, "emerge", FixAnimOnSpawn)
+    Hooks.sg.state.onenter.Post(sg, "submerge", FixAnimOnSpawn)
 end)
 
 ------------------------------------------------------------------------------------
 
 AddStategraphPostInit("wilsonboating", function(sg)
     -- Can use goggles attack when boating
-    HookSG_EventHandler(sg, "doattack", function(inst, data, _old)
+    Hooks.sg.handler.Event(sg, "doattack", function(inst, data, _old)
         if not inst.components.health:IsDead() and not inst.sg:HasStateTag("attack") and not inst.sg:HasStateTag("sneeze") then
             local weapon = inst.components.combat and inst.components.combat:GetWeapon()
             if weapon and weapon:HasTag("goggles") then 
@@ -838,16 +880,180 @@ AddStategraphPostInit("wilsonboating", function(sg)
         end
     end)
 
-    sg.states["goggleattack"] = _G.deepcopy(SGwilson.states["goggleattack"])
-    sg.states["goggle_attack_post"] = _G.deepcopy(SGwilson.states["goggle_attack_post"])
+    sg.states["goggleattack"] = deepcopy(SGwilson.states["goggleattack"])
+    sg.states["goggle_attack_post"] = deepcopy(SGwilson.states["goggle_attack_post"])
     AddTagToState(sg, "goggleattack", "boating")
     AddTagToState(sg, "goggle_attack_post", "boating")
 
     -- Wagstaff special voice parameter when boating.
-    HookSG_StatePre(sg, "talk", "onenter", function(inst, noanim)
+    Hooks.sg.state.onenter.Pre(sg, "talk", function(inst, noanim)
         if inst:HasTag("hasvoiceintensity_health") then
             local percent = inst.components.health:GetPercent()
             inst.SoundEmitter:SetParameter( "talk", "intensity", percent)
         end
     end)
+end)
+
+------------------------------------------------------------------------------------
+
+-- Fixes meat/fish spawning mobs on load.
+AddComponentPostInit("inventoryitem", function(self)
+    local _OnHitWater = self.OnHitWater
+    function self:OnHitWater()
+        if self.inst.components.floatable and 
+        self.inst.components.floatable.onwater then
+            self.inst:RemoveTag("falling")
+            if self.inst.components.blowinwind ~= nil then
+                self.inst.components.blowinwind:Stop()
+            end
+        else
+            _OnHitWater(self)
+        end
+    end
+end)
+
+-----------------------------------------------------------------------------------
+
+-- Klei has a outdated "version" of speechs for SW, and forgot to update in the QoL update...
+if not hasHAM then
+    local missing_quotes = require("missing_speech_SW")
+
+    for char, quotes_table in pairs(missing_quotes) do
+        for key_type, quotes in pairs(quotes_table) do
+            local parentTable = STRINGS.CHARACTERS[string.upper(char)][key_type]
+            for k, v in pairs(quotes) do
+                if type(parentTable[k]) == "table" then
+                    for kk, vv in pairs(v) do
+                        if not parentTable[k][kk] then
+                            parentTable[k][kk]=  vv
+                        end
+                    end
+                elseif not parentTable[k] then
+                    parentTable[k] = v
+                end
+            end
+        end
+    end
+
+end
+
+------------------------------------------------------------------------------------
+
+STRINGS.ACTIONS.DEPLOY.PORTABLE = "Place"
+
+AddPrefabPostInit("portablecookpot_item", function(inst)
+    inst.components.inventoryitem:SetOnDroppedFn(nil) --> Don't Auto-Place
+    inst:AddTag("portableitem") --> Place Verb
+
+    inst.components.deployable.deploydistance = 1.5
+end)
+
+------------------------------------------------------------------------------------
+
+local function PushPlayAnim(inst)
+    inst.components.floatable:OnHitWater()
+    if inst.components.blowinwind ~= nil then
+        inst.components.blowinwind:Stop()
+    end
+    inst:RemoveEventCallback("animover", PushPlayAnim)
+end
+
+local function DeathOnEnter(inst, anim, sound)
+    inst.SoundEmitter:PlaySound("dontstarve_DLC002/creatures/"..sound)
+    inst.components.locomotor:Stop()
+    RemovePhysicsColliders(inst)
+
+    local item = SpawnPrefab(inst.components.lootdropper.loot[1])
+
+    item.Transform:SetPosition(inst.Transform:GetWorldPosition())
+
+    item.Transform:SetTwoFaced()
+    item.Transform:SetRotation(inst:GetRotation())
+    item.Transform:SetPosition(inst.Transform:GetWorldPosition())
+
+    if inst.components.poisonable and inst.components.poisonable:IsPoisoned() and item.components.perishable then
+        item.components.perishable:ReducePercent(TUNING.POISON_PERISH_PENALTY)
+    end
+
+    inst:ApplyInheritedMoisture(item)
+    
+    if anim then
+        item.AnimState:PlayAnimation(anim)
+        item:ListenForEvent("animover", PushPlayAnim)
+    else
+        item.components.floatable:OnHitWater()
+        if item.components.blowinwind ~= nil then
+            item.components.blowinwind:Stop()
+        end
+    end
+
+    inst:Remove()
+end
+
+local function ReworkFishDeath(sg_name, prefab, sound, anim)
+    AddPrefabPostInit(prefab, function(inst)
+        inst.components.health.nofadeout = true
+    end)
+
+    AddStategraphPostInit(sg_name, function(self)
+        local death = self.states["death"]
+        death.onenter = function(inst) DeathOnEnter(inst, anim, sound) end
+    end)
+end
+
+ReworkFishDeath("jellyfish", "jellyfish_planted", "jellyfish/death_murder", "death")
+ReworkFishDeath("rainbowjellyfish", "rainbowjellyfish_planted", "jellyfish/death_murder", "death")
+
+ReworkFishDeath("solofish", "solofish", "Dogfish/death")
+ReworkFishDeath("swordfish", "swordfish", "swordfish/death")
+
+------------------------------------------------------------------------------------
+
+local function SeaweedStalkOnDeploy(inst, pt) 
+    inst = inst.components.stackable:Get()    
+    inst:Remove()
+    local stalk = SpawnPrefab("seaweed_planted")
+    stalk.Transform:SetPosition(pt:Get()) 
+    stalk.components.pickable:MakeEmpty()
+    stalk.AnimState:PlayAnimation("picked", true)
+end
+
+-- Fixes a non-looped animation on seaweed stalk deploy.
+AddPrefabPostInit("seaweed_stalk", function(inst)
+    inst.components.deployable.ondeploy = SeaweedStalkOnDeploy
+end)
+
+------------------------------------------------------------------------------------
+
+-- Fixes some mobs burning to ash instead of dying when burned.
+
+require "behaviours/panic"
+
+AddPrefabPostInit("flup", function(inst)
+    inst:RemoveComponent("burnable")
+    MakeSmallBurnableCharacter(inst, "flup_body")
+end)
+
+AddPrefabPostInit("sharkitten", function(inst)
+    inst:RemoveComponent("burnable")
+    inst:RemoveComponent("propagator")
+    MakeMediumBurnableCharacter(inst, "hound_body")
+end)
+
+local prefabs_to_add_panic = {"flup", "sharkitten"}
+
+for _, prefab in pairs(prefabs_to_add_panic) do
+    AddBrainPostInit(prefab.."brain", function(brain)
+        local inst = brain.inst
+        table.insert(brain.bt.root.children, 1,
+            WhileNode(function() return inst.components.health.takingfiredamage end, "OnFire", Panic(inst))
+        ) 
+    end)
+end
+
+------------------------------------------------------------------------------------
+
+--The original noTags was being overwrited by {"sharkitten"}
+AddPrefabPostInit("tigershark", function(inst)
+    inst.components.groundpounder.noTags = {"sharkitten", "FX", "NOCLICK", "DECOR", "INLIMBO", "groundpoundimmune"}
 end)

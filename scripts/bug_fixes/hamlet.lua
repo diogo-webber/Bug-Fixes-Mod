@@ -2,10 +2,10 @@
 if GetConfig("rain") then
     -- Interiors issue - Hurricane Storm Fix
     AddComponentPostInit("seasonmanager", function(self)
-        local _oldStartHurricaneStorm = self.StartHurricaneStorm
+        local _StartHurricaneStorm = self.StartHurricaneStorm
         function self:StartHurricaneStorm(duration_override, disablehail, dont_reset)
             if not dont_reset then 
-                _oldStartHurricaneStorm(self, duration_override, disablehail)
+                _StartHurricaneStorm(self, duration_override, disablehail)
                 return
             end
 
@@ -16,10 +16,10 @@ if GetConfig("rain") then
             end
         end
 
-        local _oldStopHurricaneStorm = self.StopHurricaneStorm
+        local _StopHurricaneStorm = self.StopHurricaneStorm
         function self:StopHurricaneStorm(continue)
             if not continue then
-                _oldStopHurricaneStorm(self)
+                _StopHurricaneStorm(self)
                 return
             end
             
@@ -66,7 +66,7 @@ local function FixFenceRotationPosInteior(inst)
     inst:ListenForEvent("endinteriorcam", function()
         inst.Transform:SetRotation(
             CalcRotationEnum(inst.Transform:GetRotation(), inst.prefab == "fence_gate") * 45)
-    end, _G.GetWorld())
+    end, GetWorld())
 end
 
 -- On exit interior fence rotation fix
@@ -109,15 +109,15 @@ if GetConfig("gifts") then
     -- Wilba gifts load fix
     for _, prefab in ipairs(pigman_city) do
         AddPrefabPostInit("pigman_"..prefab, function(inst)
-            local _oldOnSave = inst.OnSave
+            local _OnSave = inst.OnSave
             inst.OnSave = function(inst, data)
-                _oldOnSave(inst, data)
+                _OnSave(inst, data)
                 data.daily_gift = inst.daily_gift
             end
 
-            local _oldOnLoad = inst.OnLoad
+            local _OnLoad = inst.OnLoad
             inst.OnLoad = function(inst, data)
-                _oldOnLoad(inst, data)
+                _OnLoad(inst, data)
                 if data.daily_gift then
                     inst.daily_gift = data.daily_gift
                 end
@@ -130,17 +130,17 @@ end
 
 local function CanTakeAmmo(inst, ammo, giver)
     return (ammo.components.inventoryitem ~= nil) and
-            inst.components.trader.enabled and
+        inst.components.trader.enabled and
+        (
+            inst.components.weapon.projectile == nil or
             (
-                inst.components.weapon.projectile == nil or
-                (
-                    inst.components.weapon.projectile == ammo.prefab and 
-                    inst.components.inventory:GetItemInSlot(1).components.stackable and
-                    inst.components.inventory:GetItemInSlot(1).components.stackable:RoomLeft() ~= 0
-                )
-            ) and
-            not ammo.components.health and
-            not ammo:HasTag("irreplaceable")
+                inst.components.weapon.projectile == ammo.prefab and 
+                inst.components.inventory:GetItemInSlot(1).components.stackable and
+                not inst.components.inventory:GetItemInSlot(1).components.stackable:IsFull()
+            )
+        ) and
+        not ammo.components.health and
+        not ammo:HasTag("irreplaceable")
 end
 
 -- Fix a crash with wheller gun
@@ -150,32 +150,70 @@ AddPrefabPostInit("trusty_shooter", function(inst)
 end)
 
 -- Trusty_shooter will aceppt everything in the Load Prompt.
-AddPrefabPostInitAny(function(inst)
-    if inst.components and inst.components.inventoryitem and not inst.components.tradable then
-        inst:AddComponent("tradable")
+local GIVE_fn = ACTIONS.GIVE.fn
+ACTIONS.GIVE.fn = function(act)
+    if act.target:HasTag("hand_gun") then
+        if act.target.components.trader then
+            act.target.components.trader:AcceptGift(act.doer, act.invobject)
+            return true
+        end
+    end
+    return GIVE_fn(act)
+end
+
+AddComponentPostInit("inventoryitem", function(self)    
+    local _CollectUseActions = self.CollectUseActions
+    function self:CollectUseActions(doer, target, actions)
+        if target:HasTag("hand_gun") then
+	    	if target.components.trader:CanAccept(self.inst, doer) then
+	    		table.insert(actions, ACTIONS.GIVE)
+            end
+        end
+
+        return _CollectUseActions(self, doer, target, actions)
     end
 end)
 
 ------------------------------------------------------------------------------------
 
+local function SpiderMonkeySpawnTest(inst)
+    if not (inst.components.herd and not inst.components.herd:IsFull()) then
+        return false
+    end
+
+    local x,y,z = inst.Transform:GetWorldPosition()
+
+    local ents = TheSim:FindEntities(
+        x,y,z, 
+        inst.components.herd.gatherrange,
+        inst.components.herd.membertag and {inst.components.herd.membertag} or nil
+    )
+    return #ents < TUNING.ROCKYHERD_MAX_IN_RANGE
+end
+
+local function SpiderMonkeyHerdOnLoadPostPass(inst, ents, data)
+    if data and data.homeTree and ents[data.homeTree] then
+        inst.homeTree = ents[data.homeTree].entity
+        inst.homeTree.spiderMonkeyHerd = inst
+
+        for k, v in pairs(inst.components.herd.members) do
+            if inst.homeTree then
+                k.components.knownlocations:RememberLocation("home", Point(inst.homeTree.Transform:GetWorldPosition()), false)
+            end
+        end
+    end
+end
+
+local function SpiderMonkeyHerdOnSave(inst, data)
+    if inst.homeTree and inst.homeTree:IsValid() then
+        data.homeTree = inst.homeTree.GUID
+        return {inst.homeTree.GUID}
+    end
+end
+
 AddPrefabPostInit("spider_monkey_herd", function(inst)
     -- Add aditional herd limit for Spider Monkeys
-    inst.components.periodicspawner:SetSpawnTestFn(
-        function(inst)
-            if not (inst.components.herd and not inst.components.herd:IsFull()) then
-                return false
-            end
-
-            local x,y,z = inst.Transform:GetWorldPosition()
-
-            local ents = _G.TheSim:FindEntities(
-                x,y,z, 
-                inst.components.herd.gatherrange,
-                inst.components.herd.membertag and {inst.components.herd.membertag} or nil
-            )
-            return #ents < TUNING.ROCKYHERD_MAX_IN_RANGE
-        end
-    )
+    inst.components.periodicspawner:SetSpawnTestFn(SpiderMonkeySpawnTest)
 
     -- Find a new tree if the currently is removed.
     local _RefreshHomeTreeFn = inst.RefreshHomeTreeFn
@@ -193,25 +231,8 @@ AddPrefabPostInit("spider_monkey_herd", function(inst)
     end
 
     -- Spidermonkeys will no longer switch of tree after load. Thanks to: Faintly Macabre.
-    inst.OnSave = function(inst, data)
-        if inst.homeTree and inst.homeTree:IsValid() then
-            data.homeTree = inst.homeTree.GUID
-            return {inst.homeTree.GUID}
-        end
-    end
-
-    inst.OnLoadPostPass = function(inst, ents, data)
-        if data and data.homeTree and ents[data.homeTree] then
-            inst.homeTree = ents[data.homeTree].entity
-            inst.homeTree.spiderMonkeyHerd = inst
-
-            for k, v in pairs(inst.components.herd.members) do
-                if inst.homeTree then
-                    k.components.knownlocations:RememberLocation("home", _G.Point(inst.homeTree.Transform:GetWorldPosition()), false)
-                end
-            end
-        end
-    end
+    inst.OnSave = SpiderMonkeyHerdOnSave
+    inst.OnLoadPostPass = SpiderMonkeyHerdOnLoadPostPass
 end)
 
 ------------------------------------------------------------------------------------
@@ -220,7 +241,7 @@ end)
 require("tuning_override_sw").OVERRIDES["crocodog"] =
     {
         doit = 	function(difficulty)
-            local hounded = _G.GetWorld().components.hounded
+            local hounded = GetWorld().components.hounded
             if hounded then
                 if difficulty == "never" then
                     hounded:SpawnModeNever()
@@ -239,14 +260,14 @@ require("tuning_override_sw").OVERRIDES["crocodog"] =
 
 -- Remove the basket map icon from the ballon...
 AddPrefabPostInit("deflated_balloon", function(inst)
-    inst.MiniMapEntity = nil
+    inst.MiniMapEntity:SetEnabled(false)
 end)
 
 ------------------------------------------------------------------------------------
 
 -- Fix a incoerrent shadow in grabbing_vine idle.
 AddStategraphPostInit("grabbing_vine", function(sg)
-    HookSG_StatePost(sg, "idle_up", "onenter", function(inst, arg)
+    Hooks.sg.state.onenter.Post(sg, "idle_up", function(inst, arg)
         inst:shadowoff()
     end)
 end)
@@ -272,27 +293,30 @@ local function FixInteriorRessurect(inst)
 
     inst.components.resurrector.doresurrect = function(inst, dude)
         _doresurrect(inst, dude)
-        _G.GetPlayer():DoTaskInTime(0, function()
-            if _G.TheCamera.interior or inst.interior then
-                _G.GetPlayer().Transform:SetRotation(0)
-                local interiorSpawner = _G.GetWorld().components.interiorspawner
-                interiorSpawner:PlayTransition(_G.GetPlayer(), nil, inst.interior, inst)			
+        TheCamera:Snap()
+        
+        GetPlayer():DoTaskInTime(0, function()
+            if TheCamera.interior or inst.interior then
+                GetPlayer().Transform:SetRotation(0)
+                local interiorSpawner = GetWorld().components.interiorspawner
+                interiorSpawner:PlayTransition(GetPlayer(), nil, inst.interior, inst)			
             else		
-                _G.GetPlayer().Transform:SetRotation(inst.Transform:GetRotation())
+                GetPlayer().Transform:SetRotation(inst.Transform:GetRotation())
             end
 
             if not inst.interior then
-                if _G.TheCamera.interior then
-                    local interiorSpawner = _G.GetWorld().components.interiorspawner
+                if TheCamera.interior then
+                    local interiorSpawner = GetWorld().components.interiorspawner
                     interiorSpawner.exteriorCamera:SetDistance(12)
                 else
-                    _G.TheCamera:SetDistance(12)	
+                    TheCamera:SetDistance(12)	
                 end
             end
         end)
     end
 end
 
+AddPrefabPostInit("resurrectionstone", FixInteriorRessurect)
 AddPrefabPostInit("resurrectionstatue", FixInteriorRessurect)
 AddPrefabPostInit("lifeplant", FixInteriorRessurect)
 
@@ -359,7 +383,7 @@ AddPrefabPostInit("nettle", function(inst)
 
     -- Revert the Pause() call.
     inst.components.pickable.pause_time = 0
-	inst.components.pickable.paused = false
+    inst.components.pickable.paused = false
 end)
 
 ------------------------------------------------------------------------------------
@@ -374,6 +398,22 @@ end)
 -- Fix a incorrect lawnornament_6's position.
 local setpeice = require("map/static_layouts/city_park_2")
 setpeice.layers[2].objects[11].x = 128
+
+------------------------------------------------------------------------------------
+
+local states = {"play_flute", "play_horn", "play_bell", "use_fan", "map", "toolbroke"}
+    
+-- Fixes ghost carry arm for Wilba in Werewilba form.
+AddStategraphPostInit("wilson", function(sg)
+    for _, state in ipairs(states) do
+        Hooks.sg.state.onexit.Post(sg, state, function(inst, arg) 
+            if inst.were then
+                inst.AnimState:Hide("ARM_carry") 
+                inst.AnimState:Show("ARM_normal")
+            end
+        end)
+    end
+end)
 
 ------------------------------------------------------------------------------------
 
@@ -450,7 +490,7 @@ for _, sufix in pairs(tubertree_sufixs) do
         
         -- Give the loot the same colour of the tree.
         function inst.components.lootdropper:DropLootPrefab(...)
-            local loot =_DropLootPrefab(self, ...)
+            local loot = _DropLootPrefab(self, ...)
 
             if self.inst.AnimState and loot.AnimState then
                 loot.AnimState:SetMultColour(self.inst.AnimState:GetMultColour())
@@ -463,31 +503,35 @@ end
 
 ------------------------------------------------------------------------------------
 
-if GetConfig("pigfixer") then
-    local function spawnFixer(inst, old_fn)
-        local x,y,z = inst.Transform:GetWorldPosition()
-        local fixers = _G.TheSim:FindEntities(x,y,z, 30, {"fixer"})
-        local pigs = _G.TheSim:FindEntities(x,y,z, 40, {"city_pig"})
+local function spawnFixer(inst, old_fn)
+    local x,y,z = inst.Transform:GetWorldPosition()
+    local fixers = TheSim:FindEntities(x,y,z, 30, {"fixer"})
+    local pigs = TheSim:FindEntities(x,y,z, 40, {"city_pig"})
 
-        -- Only spawn the mechanic pig if the entity is in a "city".
-        if #fixers > 0 or #pigs >= 5 then 
-            old_fn(inst) -- Pig alredy exist, go fix it!
-        end
-
-        -- if _spawnFixer create the task, re-create its with the new timer.
-        if inst.task then
-            -- From ~10-12 seconds to 30-60 seconds.
-            local new_delay = TUNING.SEG_TIME + (math.random() * TUNING.SEG_TIME)
-
-            if #fixers > 0 then -- Pig alredy exist, go fix it!
-                new_delay = 10
-            end
-
-            inst.task:Cancel()
-            inst.task = nil
-            inst.task = inst:DoTaskInTime(new_delay, function() spawnFixer(inst, old_fn) end)
-        end
+    -- Only spawn the mechanic pig if the entity is in a "city".
+    if #fixers > 0 or #pigs >= 5 then 
+        old_fn(inst) -- Pig alredy exist, go fix it!
     end
+
+    -- if _spawnFixer create the task, re-create its with the new timer.
+    if inst.task then
+        -- From ~10-12 seconds to 30-60 seconds.
+        local new_delay = TUNING.SEG_TIME + (math.random() * TUNING.SEG_TIME)
+
+        if #fixers > 0 then -- Pig alredy exist, go fix it!
+            new_delay = 10
+        end
+
+        inst.task:Cancel()
+        inst.task = nil
+        inst.task = inst:DoTaskInTime(new_delay, function() spawnFixer(inst, old_fn) end)
+    end
+end
+
+local function reconstruction_project_displaynamefn(inst)
+    local name = inst.construction_prefab:find("topiary") and "topiary" or inst.construction_prefab
+    local prefix = inst.reconstruction_stages[1].anim == "burnt" and "Burnt " or "Broken "
+    return prefix .. STRINGS.NAMES[string.upper(name)]
 end
 
 AddPrefabPostInit("reconstruction_project", function(inst)
@@ -508,21 +552,19 @@ AddPrefabPostInit("reconstruction_project", function(inst)
     end)
 
     -- Fixes the missing name after load and add a sufix.
-    inst.displaynamefn = function(inst)
-        local name = inst.construction_prefab:find("topiary") and "topiary" or inst.construction_prefab
-        local prefix = inst.reconstruction_stages[1].anim == "burnt" and "Burnt " or "Broken "
-        return prefix .. STRINGS.NAMES[string.upper(name)]
-    end
+    inst.displaynamefn = reconstruction_project_displaynamefn
 end)
 
 ------------------------------------------------------------------------------------
 
 local function ReworkPlantStruture(inst)
+    inst.AnimState:OverrideSymbol("snow", "", "")
+
     if not GetConfig("cityplants") then return end
     
     local _onwork = inst.components.workable.onwork
     inst.components.workable:SetOnWorkCallback(function(inst, worker)
-        local fx = _G.SpawnPrefab("robot_leaf_fx")
+        local fx = SpawnPrefab("robot_leaf_fx")
         local x, y, z= inst.Transform:GetWorldPosition()
         fx.Transform:SetPosition(x, y + math.random()*0.5, z)
                 
@@ -535,7 +577,7 @@ local function ReworkPlantStruture(inst)
     inst.components.workable:SetOnFinishCallback(function(inst, worker)
         local x, y, z = inst.Transform:GetWorldPosition()
         for i=1,math.random(3,4) do
-            local fx = _G.SpawnPrefab("robot_leaf_fx")
+            local fx = SpawnPrefab("robot_leaf_fx")
             fx.Transform:SetPosition(x + (math.random()*2) , y+math.random()*0.5, z + (math.random()*2))
             if math.random() < 0.5 then
                 fx.Transform:SetScale(-1,1,-1)
@@ -550,6 +592,7 @@ end
 
 for n=1, 7 do
     -- Each Lawnornament have his own name. Also add some fx.
+    -- Remove the bugged snow symbol that bug the mouse over.
     AddPrefabPostInit("lawnornament_"..n, function(inst)
         inst.nameoverride = nil
         inst.components.inspectable.nameoverride = "lawnornament"
@@ -561,13 +604,16 @@ end
 
 for n=1, 4 do
     -- Fix missing name for broken/burnt topyaries, make them burnable and add some fx.
+    -- Remove the bugged snow symbol that bug the mouse over.
     AddPrefabPostInit("topiary_"..n, function(inst)
         inst.components.fixable:SetPrefabName("topiary")
 
         if n == 3 or n == 4 then
-            _G.MakeLargeBurnable(inst, nil, nil, true)
+            MakeLargeBurnable(inst, nil, nil, true)
+            MakeLargePropagator(inst)
         else
-            _G.MakeMediumBurnable(inst, nil, nil, true)
+            MakeMediumBurnable(inst, nil, nil, true)
+            MakeMediumPropagator(inst)
         end
 
         inst:ListenForEvent("burntup", inst.Remove)
@@ -581,7 +627,8 @@ end
 -- Make Hedges burnable.
 for _, sufix in ipairs({"layered", "block", "cone"}) do
     AddPrefabPostInit("hedge_"..sufix, function(inst)
-        _G.MakeMediumBurnable(inst, nil, nil, true)
+        MakeMediumBurnable(inst, nil, nil, true)
+        MakeMediumPropagator(inst)
         inst:ListenForEvent("burntup", inst.Remove)
     end)
 end
@@ -594,7 +641,7 @@ AddPrefabPostInit("living_artifact", function(inst)
     inst.Revert = function(inst)
         _Revert(inst)
 
-        local player = _G.GetPlayer()
+        local player = GetPlayer()
         if player.components.moisture then
             player.components.moisture.moisture = 0
         end
@@ -655,7 +702,6 @@ AddPrefabPostInitAny(function(inst)
         
         inst:AddComponent("mystery")
     end
-
 end)
 
 local stages = {"", "_low", "_med", "_full"}
@@ -668,22 +714,24 @@ for _, pile in ipairs({"magmarock", "magmarock_gold", "stalagmite", "stalagmite_
     end
 end
 
+local function mystery_AddReward(self, reward)
+    local color = 0.5 + math.random() * 0.5
+    self.inst.AnimState:SetMultColour(color-0.15, color-0.15, color, 1)
+
+    self.inst:AddTag("mystery")
+    self.reward = reward or self:GenerateReward()
+
+    self.inst:ListenForEvent("onremove", function()
+        if self.inst:HasTag("mystery") and self.inst.components.mystery.investigated then
+            self.inst:RemoveTag("mystery")
+            self.inst.components.lootdropper:SpawnLootPrefab(self.reward)
+        end
+    end)
+end
+
 -- Fixes the duplicate loot... Klei and her code...
 AddComponentPostInit("mystery", function(self)
-    function self:AddReward(reward)
-        local color = 0.5 + math.random() * 0.5
-        self.inst.AnimState:SetMultColour(color-0.15, color-0.15, color, 1)
-    
-        self.inst:AddTag("mystery")
-        self.reward = reward or self:GenerateReward()
-    
-        self.inst:ListenForEvent("onremove", function()
-            if self.inst:HasTag("mystery") and self.inst.components.mystery.investigated then
-                self.inst:RemoveTag("mystery")
-                self.inst.components.lootdropper:SpawnLootPrefab(self.reward)
-            end
-        end)
-    end
+    self.AddReward = mystery_AddReward
 end)
 
 ------------------------------------------------------------------------------------
@@ -695,9 +743,9 @@ end)
 
 ------------------------------------------------------------------------------------
 
-local function RocStatesMounted(sg, state)
-    HookSG_EventHandler(sg, state, function(inst, data, _old)
-        if not _G.GetPlayer().components.rider:IsRiding() then
+local function RocStatesMounted(sg, event)
+    Hooks.sg.handler.Event(sg, event, function(inst, data, _old)
+        if not GetPlayer().components.rider:IsRiding() then
             _old(inst, data)
         end
     end)
@@ -707,4 +755,38 @@ end
 AddStategraphPostInit("roc_head", function(sg)
     RocStatesMounted(sg,"gobble")
     RocStatesMounted(sg, "bash")
+end)
+
+------------------------------------------------------------------------------------
+
+
+if GetConfig("hulk_basalt") then
+    local function BasaltAutoStack(self, pt, loots)
+        local prefabs = loots
+        if prefabs == nil then
+            prefabs = self:GenerateLoot()
+        end
+        self:CheckBurnable(prefabs)
+
+        for k,v in pairs(prefabs) do
+            local loot = self:SpawnLootPrefab(v, pt)
+            loot:AddComponent("selfstacker")
+            loot.components.selfstacker.searchradius = 10
+            loot.components.selfstacker:DoStack()
+        end
+    end
+
+    -- Self Stack the loot from Rock Basalts to prevent FPS drop.
+    AddPrefabPostInit("rock_basalt", function(inst)
+        inst.components.lootdropper.DropLoot = BasaltAutoStack
+    end)
+end
+
+------------------------------------------------------------------------------------
+
+-- Fixes a crash caused by the global root trunk entity being destroied.
+AddPrefabPostInit("roottrunk", function(inst)
+    inst:RemoveComponent("workable")
+    inst:RemoveComponent("burnable")
+    inst:RemoveComponent("propagator")
 end)
