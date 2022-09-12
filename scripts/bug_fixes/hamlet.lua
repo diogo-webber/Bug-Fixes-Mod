@@ -790,3 +790,42 @@ AddPrefabPostInit("roottrunk", function(inst)
     inst:RemoveComponent("burnable")
     inst:RemoveComponent("propagator")
 end)
+
+------------------------------------------------------------------------------------
+
+-- Fixes child spawning in the void when the child spawner is located in an interior
+AddComponentPostInit("childspawner", function(self)
+    local _SpawnChild = self.SpawnChild
+    function self:SpawnChild(target, prefab, radius, tries)
+        if not self.inst:IsInLimbo() then
+            return _SpawnChild(self)
+        end
+
+        if not self:CanSpawn() then
+            return
+        end
+
+        tries = tries or 1
+        if tries < 100 then
+            self.inst:DoTaskInTime(5, function(inst)
+                inst.components.childspawner:SpawnChild(target, prefab, radius, tries + 1)
+            end)
+        end
+    end
+end)
+
+AddComponentPostInit("spawner", function(self)
+    local _ReleaseChild = self.ReleaseChild
+    function self:ReleaseChild(tries)
+        if not self.inst:IsInLimbo() then
+            return _ReleaseChild(self)
+        end
+
+        tries = tries or 1
+        if tries < 100 then
+            self.inst:DoTaskInTime(5, function(inst)
+                inst.components.spawner:ReleaseChild(tries + 1)
+            end)
+        end
+    end
+end)
