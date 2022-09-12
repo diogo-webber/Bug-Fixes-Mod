@@ -793,7 +793,7 @@ end)
 
 ------------------------------------------------------------------------------------
 
--- Fixes child spawning in the void when the child spawner is located in an interior
+-- Fixes child spawning in the void when the child spawner is located in an interior.
 AddComponentPostInit("childspawner", function(self)
     local _SpawnChild = self.SpawnChild
     function self:SpawnChild(target, prefab, radius, tries)
@@ -828,4 +828,11 @@ AddComponentPostInit("spawner", function(self)
             end)
         end
     end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Fixes the pig queen obnoxiously following wilba sometimes.
+AddPrefabPostInit("pigman_queen", function(inst)
+    inst.daily_gift = math.huge
 end)
