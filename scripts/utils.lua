@@ -25,6 +25,14 @@ function env.LoadModPrefabFile(file)
     table.insert(PrefabFiles, file)
 end
 
+env.MODS = {
+    Mouse_Through = 1719013848
+}
+
+function env.IsModEnabled(mod)
+    KnownModIndex:IsModEnabled("workshop-"..mod)
+end
+
 ------------------------------------------------------------------------------------
 
 local function HookStateFn(sg, state, fn, new_fn, extra_arg)
@@ -94,6 +102,22 @@ end
 
 ------------------------------------------------------------------------------------
 
+local function ShowBoat(inst, arg)
+    local vehicle = inst.components.driver.vehicle
+    return vehicle and vehicle:Show()
+end
+
+local function HideBoat(inst, arg)
+    local vehicle = inst.components.driver.vehicle
+    return vehicle and vehicle:Hide()
+end
+
+local function ToggleBoat(sg, state)
+    Onenter_Onexit(sg, state, ShowBoat, HideBoat)
+end
+
+------------------------------------------------------------------------------------
+
 function env.AddTagToState(sg, state, tag)
     sg.states[state].tags[tag] = true
 end
@@ -109,6 +133,7 @@ Hooks = {
             Pre = HookSG_StatePre,
             Post = HookSG_StatePost,
             Onenter_Onexit = Onenter_Onexit,
+            ToggleBoat = ToggleBoat,
         },
         handler = {
             Event = HookSG_EventHandler,

@@ -107,7 +107,7 @@ if GetConfig("trap") then
         inst:AddTag("canbetrapped")
     end
 
-    -- Trapapped animals
+    -- Trapped animals
     AddPrefabPostInit("snake", AddTrapTag)
     AddPrefabPostInit("snake_poison", AddTrapTag)
     AddPrefabPostInit("flup", AddTrapTag)
@@ -258,9 +258,9 @@ local SwordFish_CHASE_DIST = 40
 local function SwordFishKeepTargetFn(_keepTarget)
     return function(inst, target)
         local shouldkeep = _keepTarget(inst, target)
+        local home = inst.components.knownlocations:GetLocation("home")
 
-        if shouldkeep then
-            local home = inst.components.knownlocations:GetLocation("home")
+        if shouldkeep and home then
             local isnearhome = inst:GetDistanceSqToPoint(home) <= SwordFish_CHASE_DIST * SwordFish_CHASE_DIST
 
             return isnearhome
@@ -351,7 +351,7 @@ local function MoveBoatOnUpdate(self)
     end
 end
 
--- Litle change to boat position to work properly with the bundling anim hack
+-- Little change to boat position to work properly with the bundling anim hack
 AddComponentPostInit("driver", function(self)
     local _OnUpdate = self.OnUpdate
     function self:OnUpdate(dt)
@@ -368,16 +368,6 @@ AddStategraphActionHandler("wilsonboating", ActionHandler(ACTIONS.BUNDLE, "bundl
 local SGwilson = require("stategraphs/SGwilson")
 package.loaded["stategraphs/SGwilson"] = nil -- Unload the file
 
-local function ShowBoat(inst, arg)
-    local vehicle = inst.components.driver.vehicle
-    return vehicle and vehicle:Show()
-end
-
-local function HideBoat(inst, arg)
-    local vehicle = inst.components.driver.vehicle
-    return vehicle and vehicle:Hide()
-end
-
 -- Add the bundling states to boating + hacky to show the boat with the anim (bundling anim don't have boat symbol)
 AddStategraphPostInit("wilsonboating", function(sg)
     for i, state in ipairs({"bundle", "bundling", "bundle_pst"}) do
@@ -386,7 +376,7 @@ AddStategraphPostInit("wilsonboating", function(sg)
         AddTagToState(sg, state, "boating")
 
         if GetConfig("bundle_fx") then -- Don't need this for build anim
-            Hooks.sg.state.Onenter_Onexit(sg, state, ShowBoat, HideBoat)
+            Hooks.sg.state.ToggleBoat(sg, state)
         end
     end
 
@@ -455,8 +445,8 @@ local function destroystuff(inst)
     end
 end
 
--- Fix Coconut being cutted in inventory by weather pain
--- + ajust work rate
+-- Fixes Coconut being cut in inventory by weather pain
+-- + adjust work rate
 AddStategraphPostInit("tornado", function(self)
     UpvalueHacker.SetUpvalue(self.states["idle"].onenter, destroystuff, "destroystuff")
     UpvalueHacker.SetUpvalue(self.states["walk"].onenter, destroystuff, "destroystuff")
@@ -586,7 +576,7 @@ end)
 ------------------------------------------------------------------------------------
 
 if GetConfig("speed") then
-    -- Fixes character specials speed modifieres in World Reset
+    -- Fixes character specials speed modifiers in World Reset
     AddComponentPostInit("locomotor", function(self)
         function self:OnProgress()
             if SaveGameIndex:GetCurrentMode(Settings.save_slot) ~= "adventure" then
@@ -737,7 +727,7 @@ AddPrefabPostInit("dragoonden", SetBlankAction)
 
 ------------------------------------------------------------------------------------
 
--- Sealnado cann't grab the player if mounted.
+-- Sealnado can't grab the player if mounted.
 AddStategraphPostInit("twister", function(sg)
     Hooks.sg.state.onenter.Post(sg, "vacuum_loop", function(inst, arg)
         if GetPlayer().components.rider:IsRiding() then
@@ -748,7 +738,7 @@ end)
 
 ------------------------------------------------------------------------------------
 
--- Items after desconstruction will float.
+-- Items after deconstruction will float.
 AddPrefabPostInit("greenstaff", function(inst)
     local _spell = inst.components.spellcaster.spell
     inst.components.spellcaster.spell = function(staff, target)
@@ -757,7 +747,7 @@ AddPrefabPostInit("greenstaff", function(inst)
         local ents = TheSim:FindEntities(pt.x,pt.y,pt.z, 5, {"isinventoryitem"}, {"INLIMBO", "NOCLICK", "FX"})
 
         for _, ent in ipairs(ents) do
-            if ent:GetTimeAlive() < 2 then
+            if ent:GetTimeAlive() < 1 then
                 ent.components.inventoryitem:OnLootDropped(0)
             end
         end
@@ -766,10 +756,12 @@ end)
 
 ------------------------------------------------------------------------------------
 
--- Sunken items can be catched with trawl net!
+-- Sunken items can be couth with trawl net!
 AddPrefabPostInit("sunkenprefab", function(inst)
     inst:RemoveTag("FX")
     inst:RemoveTag("NOCLICK")
+
+    inst:AddTag("NOBLOCK")
 end)
 
 ------------------------------------------------------------------------------------
@@ -1057,3 +1049,31 @@ end
 AddPrefabPostInit("tigershark", function(inst)
     inst.components.groundpounder.noTags = {"sharkitten", "FX", "NOCLICK", "DECOR", "INLIMBO", "groundpoundimmune"}
 end)
+
+------------------------------------------------------------------------------------
+
+local function FloatingBeard(sg)
+    Hooks.sg.state.onexit.Post(sg, "shave", function(inst, arg)
+        local pt = inst:GetPosition()
+        local ents = TheSim:FindEntities(pt.x,pt.y,pt.z, 5, {"isinventoryitem"}, {"INLIMBO", "NOCLICK", "FX"})
+
+        for _, ent in ipairs(ents) do
+            if ent:GetTimeAlive() < 1 then
+                ent.components.inventoryitem:OnLootDropped(0)
+            end
+        end
+    end)
+end
+
+AddStategraphPostInit("wilson", FloatingBeard)
+AddStategraphPostInit("wilsonboating", FloatingBeard)
+
+------------------------------------------------------------------------------------
+
+local function test_ground(inst, pt, deployer)
+    return not inst:GetIsOnWater(pt:Get())
+end
+
+-- Don't deploy mini signs on water...
+AddPrefabPostInit("minisign_item", test_ground)
+AddPrefabPostInit("minisign_drawn", test_ground)

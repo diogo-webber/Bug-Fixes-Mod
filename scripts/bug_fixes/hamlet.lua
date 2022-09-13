@@ -165,8 +165,8 @@ AddComponentPostInit("inventoryitem", function(self)
     local _CollectUseActions = self.CollectUseActions
     function self:CollectUseActions(doer, target, actions)
         if target:HasTag("hand_gun") then
-	    	if target.components.trader:CanAccept(self.inst, doer) then
-	    		table.insert(actions, ACTIONS.GIVE)
+            if target.components.trader:CanAccept(self.inst, doer) then
+                table.insert(actions, ACTIONS.GIVE)
             end
         end
 
@@ -765,12 +765,12 @@ if GetConfig("hulk_basalt") then
         local prefabs = loots
         if prefabs == nil then
             prefabs = self:GenerateLoot()
-        end
+        end 
         self:CheckBurnable(prefabs)
 
         for k,v in pairs(prefabs) do
             local loot = self:SpawnLootPrefab(v, pt)
-            loot:AddComponent("selfstacker")
+            loot:AddComponent("selfstacker") --The component will be removed in next load.
             loot.components.selfstacker.searchradius = 10
             loot.components.selfstacker:DoStack()
         end
@@ -790,3 +790,145 @@ AddPrefabPostInit("roottrunk", function(inst)
     inst:RemoveComponent("burnable")
     inst:RemoveComponent("propagator")
 end)
+
+------------------------------------------------------------------------------------
+
+-- Fixes a crash related to build house doors with space bar.
+AddComponentPostInit("playercontroller", function(self)
+    local _DoActionButton = self.DoActionButton
+    function self:DoActionButton()
+        if self.placer_recipe and self.placer and self.placer.components.placer.can_build then
+            local modifydata = self.placer.components.placer.modifyfn and self.placer.components.placer.modifyfn(self.placer) or nil
+            self.inst.components.builder:MakeRecipe(self.placer_recipe, Vector3(self.placer.Transform:GetWorldPosition()), self.placer:GetRotation(), nil, modifydata)
+            return true
+        end
+
+        return _DoActionButton(self)
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Fixes the shop keeper from getting stuck in pedestals :)
+AddStategraphPostInit("pig", function(sg)
+    sg.states["run"].onupdate = function(inst)
+        if inst:HasTag("shopkeep") and inst.changestock then
+            inst.components.locomotor:ResetPath()
+        end
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+local SGwilson = require("stategraphs/SGwilson")
+package.loaded["stategraphs/SGwilson"] = nil -- Unload the file
+
+-- Wormwood uses the correct anims now.
+AddStategraphPostInit("wilsonboating", function(sg)
+    for i, state in ipairs({"form_log", "fertilize", "fertilize_short"}) do
+        sg.states[state] = deepcopy(SGwilson.states[state])
+        AddTagToState(sg, state, "boating")
+    end
+
+    Hooks.sg.state.ToggleBoat(sg, "fertilize")
+    Hooks.sg.state.ToggleBoat(sg, "fertilize_short")
+
+    Hooks.sg.handler.Action(sg, "BUILD", function(inst, action, _fn)
+        if not inst.sg:HasStateTag("busy") and 
+            action.doer and
+            action.doer.prefab == "wormwood" and
+            action.recipe and
+            action.recipe == "livinglog" then
+                return "form_log"
+        end
+
+        return _fn(inst, action)
+    end)
+
+    Hooks.sg.handler.Action(sg, "HEAL", function(inst, action, _fn)
+        if action.invobject and action.invobject:HasTag("heal_fertilize") then
+            return "fertilize"
+        end
+
+        return _fn(inst, action)
+    end)
+
+    Hooks.sg.handler.Action(sg, "FERTILIZE", function(inst, action, _fn)
+        if inst:HasTag("healonfertilize") and not action.target then
+            return "fertilize_short"
+        end
+
+        return _fn(inst, action)
+    end)
+end)
+
+------------------------------------------------------------------------------------
+
+local function HideLayers(anim)
+    local rays = {1, 2, 3}
+    for i = 1, #rays, 1 do
+        anim:Hide("joint"..i)
+        anim:Hide("pipe"..i)
+    end
+end
+
+AddPrefabPostInit("water_pipe", function(inst)
+    -- Sprinker Pipes don't block the Sprinker mouse over after load anymore.
+    inst:AddTag("NOCLICK")
+
+    -- Don't block placement.
+    inst:AddTag("NOBLOCK")
+
+    -- The saved symbols weren't really used...
+    local _OnLoad = inst.OnLoad
+    function inst:OnLoad(data)
+        _OnLoad(inst, data)
+
+        local anim = inst.AnimState
+
+        HideLayers(anim)
+        anim:Show(inst.jointLayerShown)
+        anim:Show(inst.pipeLayerShown)
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Amphibious Snakes will target the tree chopper as intended.
+AddPrefabPostInit("snake_amphibious", function(inst)
+    inst:AddTag("snake_amphibious")
+end)
+
+------------------------------------------------------------------------------------
+
+for _, suffix in pairs({
+    "",
+    "_normal",
+    "_tall",
+    "_short"
+}) do
+    -- Removes the spawn of mobs when ignited (It spawns SW snakes and it
+    -- doesn't make much sense for the tree to be infested by 2 mobs at the same time.)
+    AddPrefabPostInit("spider_monkey_tree"..suffix, function(inst)
+        local _onignite = inst.components.burnable.onignite
+
+        local function NewIgnite(inst)
+            inst.flushed = true
+            _onignite(inst)
+        end
+
+        inst.components.burnable:SetOnIgniteFn(NewIgnite)
+
+        local _OnEntityWake = inst.OnEntityWake
+        function inst.OnEntityWake(inst)
+            _OnEntityWake(inst)
+
+            if  not inst:HasTag("burnt") and
+                not inst:HasTag("fire")  and
+                not inst:HasTag("stump")
+            then
+                inst.components.burnable:SetOnIgniteFn(NewIgnite)
+            end
+        end
+    end)
+end
