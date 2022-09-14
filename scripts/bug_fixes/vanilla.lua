@@ -390,7 +390,7 @@ local function DisableShadow(inst, arg)
     inst.DynamicShadow:Enable(true)
 end
 
--- Fix a incoerent shadow in telebrella anim
+-- Fixes a inconsistent shadow in telebrella anim
 local function FixTelebrellaShadow(sg)
     Hooks.sg.state.Onenter_Onexit(sg, "telebrella_finish", DisableShadow, EnableShadow)
 end
@@ -436,8 +436,8 @@ end
 
 ------------------------------------------------------------------------------------
 
--- Delay 3 frames to show the ARM_carry to don't glith the item_out anim
-AddComponentPostInit("equippable", function(self)
+-- Delay 3 frames to show the ARM_carry to don't glitch the item_out anim
+--[[AddComponentPostInit("equippable", function(self)
     local _Equip = self.Equip
     function self:Equip(owner, slot)
         local _onequipfn = self.onequipfn
@@ -450,6 +450,17 @@ AddComponentPostInit("equippable", function(self)
             owner:DoTaskInTime(3*FRAMES, function()
                 self.onequipfn(self.inst, owner, self.swapbuildoverride or nil)
                 self.inst:PushEvent("equipped", {owner=owner, slot=slot}) -- For work with the skins mod.
+            end)
+        end
+    end
+end)]]
+
+AddComponentPostInit("equippable", function(self)
+    local _SetOnEquip = self.SetOnEquip
+    function self:SetOnEquip(fn)
+        self.onequipfn = function(inst, owner, override)
+            self.inst:DoTaskInTime(3*FRAMES, function()
+                fn(inst, owner, override)
             end)
         end
     end
@@ -510,6 +521,7 @@ end)
 ------------------------------------------------------------------------------------
 
 -- Fix Wee Mactusk loot and a Navigadget Crash. Made by: Faintly Macabre.
+
 AddPrefabPostInit("little_walrus", function(inst)
     SetSharedLootTable('walrus_wee_loot', {{'meat', 1}})
 end)
@@ -569,7 +581,7 @@ end)
 
 ------------------------------------------------------------------------------------
 
--- Fixes mouse over effect missing in childrens.
+-- Fixes mouse over effect missing in children.
 AddComponentPostInit("highlight", function(self)
     local _ApplyColour = self.ApplyColour
     function self:ApplyColour(...)
@@ -618,7 +630,9 @@ local function FISH_AND_NET_canbeworkedby(worker, numworks)
 end
 
 local function FixNegativeWorkleft(inst)
-    inst.components.workable.canbeworkedby = FISH_AND_NET_canbeworkedby
+    if inst.components.workable then
+        inst.components.workable.canbeworkedby = FISH_AND_NET_canbeworkedby
+    end
 end
 
 AddComponentPostInit("sinkable", function(self)
@@ -666,7 +680,7 @@ end
 
 ------------------------------------------------------------------------------------
 
--- Make the projectile in the hat (for mounted anim).
+-- Launch the projectile in the hat (for mounted anim).
 AddPrefabPostInit("gogglesshoothat", function(inst)
     inst.components.weapon.projectilelaunchsymbol = "swap_hat"
     inst:RemoveTag("Shockwhenwet")
@@ -704,7 +718,6 @@ local mounted_funnyidle_state = State{
     "goggle_post",
     "investigate",
     "investigate_post",
-    "blowdart",
     "speargun",
     "shoot",
     "sneeze",
@@ -715,10 +728,9 @@ local function IsMounting()
     return GetPlayer().components.rider:IsRiding()
 end
 
-    -- Beefalo Fixes:
+-- Beefalo Fixes:
 AddStategraphPostInit("wilson", function(sg)
-    sg.states["domediumaction"] = 
-    State{
+    sg.states["domediumaction"] = State{
         name = "domediumaction",
         
         onenter = function(inst)
@@ -735,13 +747,17 @@ AddStategraphPostInit("wilson", function(sg)
         return IsMounting() and "dolongaction" or _old(inst, action)
     end)
 
-    -- BFB cann't grab the player if mounting.
+    -- BFB cannot grab the player if mounting.
     Hooks.sg.handler.Event(sg, "cower", function(inst, data, _old)
         return not IsMounting() and _old(inst, data)
     end)
 
-    -- Will no longer use the beefalo atk animation for Weather Pain when mounting.
+    -- Will no longer use the beefalo atk animation for Weather Pain and Lazy Explorer when mounting.
     Hooks.sg.state.Post(sg, "castspell_tornado", "onenter", function(inst, arg)
+        return IsMounting() and inst.AnimState:PlayAnimation("player_atk")
+    end)
+
+    Hooks.sg.state.Post(sg, "quicktele", "onenter", function(inst, arg)
         return IsMounting() and inst.AnimState:PlayAnimation("player_atk")
     end)
 
@@ -766,6 +782,22 @@ AddStategraphPostInit("wilson", function(sg)
             return true
         end
     end)
+
+    if not sg.states["book"].timeline[1].defline:find("workshop-") then -- I don't want to override other mods.
+        sg.states["book"].timeline[1].fn = function(inst)
+            local fxtoplay = inst.prefab == "waxwell" and "waxwell_book_fx" or "book_fx"
+        
+            local fx = SpawnPrefab(fxtoplay)
+            local pos = inst:GetPosition()
+
+            pos.y = inst.components.rider:IsRiding() and pos.y + 2.8 or pos.y - .2
+
+            fx.Transform:SetRotation(inst.Transform:GetRotation())
+            fx.Transform:SetPosition(pos:Get()) 
+
+            inst.sg.statemem.book_fx = fx
+        end
+    end
 
     for _, state in ipairs(states_to_fix) do
         FixMountedState(sg, state)
@@ -820,12 +852,33 @@ AddComponentPostInit("playercontroller", function(self)
     end
 end)
 
+AddComponentPostInit("combat", function(self)
+    local _GetWeapon = self.GetWeapon
+    function self:GetWeapon(...)
+        local weapon = _GetWeapon(self, ...)
+
+        if not (
+            self.inst.components.rider ~= nil and self.inst.components.rider:IsRiding()
+        )
+        or (
+            weapon and (
+                weapon:HasTag("rangedweapon")
+                or (weapon.components.weapon and weapon.components.weapon:CanRangedAttack())
+                or weapon.components.complexprojectile
+                or weapon.components.projectile
+            )
+        ) then
+            return weapon
+        end
+    end
+end)
+
 ------------------------------------------------------------------------------------
 
--- Make the quotes compatiple with beefalo heigh.
+-- Make the quotes compatible with beefalo heigh.
 AddPlayerPostInit(function(player)
     player:ListenForEvent("mounted", function(inst, data)
-        player.components.talker.offset = Vector3(0, -720, 0)
+        player.components.talker.offset = Vector3(0, -700, 0)
     end)
     player:ListenForEvent("dismounted", function(inst, data)
         player.components.talker.offset = Vector3(0, -400, 0)
@@ -894,10 +947,19 @@ local function AddDesconstrutive(recipe, ingredients)
     end
 end
 
--- Strutures build by characters will drop his loot then destroyed.
-if hasSW then AddDesconstrutive("woodlegsboat", {Ingredient("boatcannon", 1), Ingredient("boards", 4), Ingredient("dubloon", 4)}) end
-AddDesconstrutive("telipad", {Ingredient("gears", 1), Ingredient("transistor", 1),Ingredient("cutstone", 2)})
-AddDesconstrutive("thumper", {Ingredient("gears", 1), Ingredient("flint", 6), Ingredient("hammer", 2)})
+if hasSW then 
+    -- Deployed Surfboard now drops loot.
+    AddDesconstrutive("surfboard", {Ingredient("boards", 1), Ingredient("seashell", 2)})
+
+    -- Structures build by characters will drop his loot then destroyed by a different character.
+    AddDesconstrutive("woodlegsboat", {Ingredient("boatcannon", 1), Ingredient("boards", 4), Ingredient("dubloon", 4)})
+end
+
+AddDesconstrutive("telipad", {Ingredient("gears", 1), Ingredient("transistor", 1), Ingredient("cutstone", 2)})
+AddDesconstrutive("thumper", {Ingredient("gears", 1), Ingredient("flint"     , 6), Ingredient("hammer"  , 2)})
+
+-- Deployed Mini Sign now drops loot.
+AddDesconstrutive("minisign", {Ingredient("boards", 1)})
 
 ------------------------------------------------------------------------------------
 
@@ -1151,7 +1213,7 @@ end
 
 ------------------------------------------------------------------------------------
 
--- Werepigs will not de-transform at daytime if the cause of tranformation isn't full moon
+-- Werepigs will not de-transform at daytime if the cause of transformation isn't full moon
 AddComponentPostInit("werebeast", function(self)
     self.forced_were = false
 
@@ -1214,22 +1276,6 @@ end
 
 RemoveBBMouseOver("statueharp")
 RemoveBBMouseOver("tigershark")
-
-------------------------------------------------------------------------------------
-
--- Fix a crash related to build house doors with space bar (It's here because it can solve other similar issues)
-AddComponentPostInit("playercontroller", function(self)
-    local _DoActionButton = self.DoActionButton
-    function self:DoActionButton()
-        if self.placer_recipe and self.placer and self.placer.components.placer.can_build then
-            local modifydata = self.placer.components.placer.modifyfn and self.placer.components.placer.modifyfn(self.placer) or nil
-            self.inst.components.builder:MakeRecipe(self.placer_recipe, Vector3(self.placer.Transform:GetWorldPosition()), self.placer:GetRotation(), nil, modifydata)
-            return true
-        end
-
-        return _DoActionButton(self)
-    end
-end)
 
 ------------------------------------------------------------------------------------
 
@@ -1334,8 +1380,11 @@ local function RemovePhysicsOnDeath(state)
 
     state.onenter = function(inst)
         _onenter(inst)
-        inst.components.locomotor:Stop()
         RemovePhysicsColliders(inst)
+
+        if inst.components.locomotor then
+            inst.components.locomotor:Stop()
+        end
     end
 end
 
@@ -1380,7 +1429,7 @@ end
 
 if hasRoG then -- Crops don't wither when protected by flingo (flingo unloaded problem)
 
-    local function Crop_witherHandler(self, it, data) 
+    local function Crop_witherHandler(world_or_self, data) 
         if self.witherable and not self.withered and not self.protected and data.temp > self.wither_temp then
             self:MakeWithered()
         end
@@ -1403,7 +1452,11 @@ if hasRoG then -- Crops don't wither when protected by flingo (flingo unloaded p
             inst.event_listening["witherplants"] = nil
         end
 
-        self.witherHandler = Crop_witherHandler
+        self.witherHandler = function(world_or_self, data) 
+            if self.witherable and not self.withered and not self.protected and data.temp > self.wither_temp then
+                self:MakeWithered()
+            end
+        end
 
         self.OnEntitySleep = Crop_OnEntitySleep
         self.OnEntityWake = Crop_OnEntityWake
@@ -1413,7 +1466,7 @@ end
 ------------------------------------------------------------------------------------
 
 -- Fixes many problems caused by burn things with childspawner component.
--- I need to overwrite the ignite fn because they remove the childspawner component.
+-- I needed to overwrite the ignite fn because it removes the childspawner component.
 
 local function DefaultOnIgniteEventHandler(inst)
     if inst.components.childspawner then
@@ -1451,7 +1504,9 @@ local bee_stuctures = {"honeychest", "beehive", "wasphive", "beebox"}
 
 for _, prefab in pairs(bee_stuctures) do
     AddPrefabPostInit(prefab, function(inst)
-        inst.components.burnable:SetOnIgniteFn(BeesOnIgnite)
+        if inst.components.burnable then
+            inst.components.burnable:SetOnIgniteFn(BeesOnIgnite)
+        end
     end)
 end
 
@@ -1459,7 +1514,9 @@ local spider_dens = {"", "_2", "_3"}
 
 for _, den_sufix in pairs(spider_dens) do
     AddPrefabPostInit("spiderden"..den_sufix, function(inst)
-        inst.components.burnable:SetOnIgniteFn(SpiderDenOnIgnite)
+        if inst.components.burnable then
+            inst.components.burnable:SetOnIgniteFn(SpiderDenOnIgnite)
+        end
     end)
 end
 
@@ -1478,7 +1535,9 @@ local function SlurtleHome_onextinguish(inst, data)
 end
 
 AddPrefabPostInit("slurtlehole", function(inst)
-    inst.components.explosive:SetOnIgniteFn(SlurtleHomeOnIgnite)
+    if inst.components.explosive then
+        inst.components.explosive:SetOnIgniteFn(SlurtleHomeOnIgnite)
+    end
 
     inst:ListenForEvent("onextinguish", SlurtleHome_onextinguish)
 end)
@@ -1502,7 +1561,9 @@ local monkey_houses = {"monkeybarrel", "primeapebarrel"}
 -- Add the release all function to monkey houses for consistency.
 for _, prefab in pairs(monkey_houses) do
     AddPrefabPostInit(prefab, function(inst)
-        inst.components.burnable:SetOnIgniteFn(DefaultOnIgniteEventHandler)
+        if inst.components.burnable then
+            inst.components.burnable:SetOnIgniteFn(DefaultOnIgniteEventHandler)
+        end
     end)
 end
 
@@ -1547,6 +1608,10 @@ local function SmallLaunch(inst, launcher, basespeed)
     inst.Physics:Teleport(hp.x, .1, hp.z)
     inst.Physics:SetVel(math.cos(angle) * speed, 2.5 * speed + math.random(), math.sin(angle) * speed)
 
+    if inst.components.inventoryitem.OnStartFalling then
+        inst.components.inventoryitem:OnStartFalling()
+    end
+
     launcher.sg.mem.recentlybounced[inst.GUID] = true
     launcher:DoTaskInTime(.6, ClearRecentlyBounced, inst.GUID)
 end
@@ -1585,3 +1650,121 @@ AddComponentPostInit("groundpounder", function(self)
 end)
 
 ------------------------------------------------------------------------------------
+
+-- Fixes the grid blocking placement in Geometric Placement Mod.
+AddPrefabPostInit("gridplacer", function(inst)
+    inst:AddTag("NOBLOCK")
+end)
+
+------------------------------------------------------------------------------------
+
+if not IsModEnabled(MODS.Mouse_Through) then -- Mouse Through do it, but in a different way.
+    if not hasHAM then
+        
+        -- Port the pick condition system from hamlet.
+        local function PickWeight(ent)
+            local weight = 0
+
+            for i,v in pairs(self.pickConditions) do
+                local condition = v[1]
+                weight = weight + (condition(ent) and v[2] or 0)
+            end
+
+            return weight
+        end
+
+        local function cmp(a, b)
+            return PickWeight(a) > PickWeight(b)
+        end
+
+        local function GetSortedEntitiesAtScreenPoint(self)
+            local ents = TheSim:GetEntitiesAtScreenPoint(TheSim:GetPosition())
+
+            table.insert(ents, nil)
+            table.sort(ents, cmp)
+
+            return ents
+        end
+
+        TheInput.pickConditions = {}
+
+        function TheInput:AddPickCondition(name, condition, weight)
+            self.pickConditions[name] = {condition, weight}
+        end
+
+        function TheInput:OnUpdate()
+            if PLATFORM == "PS4" then return end
+        
+            local useController = TheInput:ControllerAttached()
+            if useController ~= self.useController then
+                self.useController = useController
+                local world = GetWorld()
+                if world then
+                    GetWorld():PushEvent("controllermode_changed", {enabled = useController})
+                end
+            end
+        
+            if self.mouse_enabled then
+                self.entitiesundermouse = GetSortedEntitiesAtScreenPoint(self)
+                
+                local inst = self.entitiesundermouse[1]
+                if inst ~= self.hoverinst then
+                    
+                    if inst and inst.Transform then
+                        inst:PushEvent("mouseover")
+                    end
+        
+                    if self.hoverinst and self.hoverinst.Transform then
+                        self.hoverinst:PushEvent("mouseout")
+                    end
+                    
+                    self.hoverinst = inst
+                end
+            end
+        end
+    end
+
+    -------------------------------------------
+
+    local function PrioritizeChest(ent)
+        return ent:HasTag("chest")
+    end
+
+    local function PrioritizeMiniSign(ent)
+        if ent.prefab == "minisign" and not ent._imagename then
+            local activeitem = GetPlayer().components.inventory:GetActiveItem()
+
+            return activeitem and activeitem.prefab == "featherpencil"
+        end
+    end
+
+    -- The mouse now prioritizes chests. Solving the issue with mini signs getting in the way.
+    TheInput:AddPickCondition("chests",   PrioritizeChest,    3)
+    TheInput:AddPickCondition("minisign", PrioritizeMiniSign, 4)
+    --                           name          test fn     priority
+end
+
+------------------------------------------------------------------------------------
+
+-- Mini Signs no longer can draw the utility "shelf_slot" entity.
+-- Fixed the 10x range typo (15 to 1.5 range)
+function _G.FindEntityToDraw(target, tool)
+    if target ~= nil then
+        local x, y, z = target.Transform:GetWorldPosition()
+        for i, v in ipairs(TheSim:FindEntities(x, y, z, 1.5, {"isinventoryitem" }, {"INLIMBO", "NOFORAGE"})) do
+            if v ~= target and v ~= tool and v.entity:IsVisible() then
+                return v
+            end
+        end
+    end
+end
+
+------------------------------------------------------------------------------------
+
+-- Fixes the spell fx position when mounting.
+AddPrefabPostInit("staffcastfx", function(inst)
+    if GetPlayer().components.rider:IsRiding() then
+        inst.AnimState:PlayAnimation("staff_mount")
+        inst.AnimState:SetTime(.3)
+    end
+end)

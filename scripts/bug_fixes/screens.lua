@@ -1,3 +1,38 @@
+
+
+local SAVEINTEGRATION_OVERRITES = {
+    SW_COMP_DESCRIPTION = "Would you like to make this world compatible with Shipwrecked? This will add new mechanics to your world like wetness and overheating.",
+    SW_COMP_ROG_DESCRIPTION = "Would you like to make this world compatible with Shipwrecked?",
+
+    DLC_CHOICE_DESC_2 = "Making the save compatible with Hamlet also makes it compatible with Shipwrecked.",
+
+    PORK_COMP_DESCRIPTION = "Would you like to make this world compatible with Hamlet? This will add new mechanics to your world like wetness and overheating.\n\nMaking the save compatible with Hamlet also makes it compatible with Shipwrecked.",
+    PORK_COMP_ROG_DESCRIPTION = "Would you like to make this world compatible with Hamlet?\n\nMaking the save compatible with Hamlet also makes it compatible with Shipwrecked.",
+    PORK_COMP_SW_DESCRIPTION =  "Would you like to make this world compatible with Hamlet?",
+}
+
+-- Replaces the deprecated "Only works with X dlc compatible mods." by Hamlet compatibility explanation.
+for key, value in pairs(SAVEINTEGRATION_OVERRITES) do
+    STRINGS.UI.SAVEINTEGRATION[key] = value
+end
+
+local function DlcCompatibilityPrompt(self)
+    -- Pop just one screen.
+    self.menu.items[2].onclick = function()
+        TheFrontEnd:PopScreen(self)
+    end
+
+    -- ESC support.
+    local _OnControl = self.OnControl
+    function self:OnControl(control, down)
+        return _OnControl(self, control, down) or (control == CONTROL_CANCEL and not down and TheFrontEnd:PopScreen(self))
+    end
+end
+
+AddGlobalClassPostConstruct("screens/dlccompatibilityprompt", "DlcCompatibilityPrompt", DlcCompatibilityPrompt)
+
+------------------------------------------------------------------------------------
+
 local cancel_like_words = {"No", "Stay", "Cancel", "Never mind..."}
 
 local function PopUpOnControl(self, control, down)
@@ -11,7 +46,7 @@ end
 local function PopUpOnBecomeActive(self)
     self._base.OnBecomeActive(self)
 
-    -- A litle adjust in text positions
+    -- A little adjust in text positions
     self.title:SetPosition(0, 60, 0)
     self.text:SetPosition(0, 0, 0)
 end
@@ -33,7 +68,7 @@ local function PopupHook(self)
     self.OnControl = PopUpOnControl
 end
 
--- Many Popups now suport ESQ to close them
+-- Many Popups now support ESQ to close them
 AddGlobalClassPostConstruct("screens/bigpopupdialog", "BigPopupDialogScreen", PopupHook)
 
 AddGlobalClassPostConstruct("screens/popupdialog", "PopupDialogScreen", function(self)
@@ -65,7 +100,7 @@ AddGlobalClassPostConstruct("screens/slotdetailsscreen", "SlotDetailsScreen", En
 
 local BetterModsScreenMod = "workshop-2842240212"
 
--- Some litle changes to Mods Screen text positions.
+-- Some little changes to Mods Screen text positions.
 AddGlobalClassPostConstruct("screens/modsscreen", "ModsScreen", function(self)
     if KnownModIndex:IsModEnabled(BetterModsScreenMod) then
         --return

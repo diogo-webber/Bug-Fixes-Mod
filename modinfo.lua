@@ -1,9 +1,9 @@
 name = "Bug Fixes"
 author = "Leonidas IV"
 
-version = "1.12"
+version = "1.12.5"
 
-description = "\nFixes more than 100 bugs!\n\n\n- Version: " .. version
+description = "\nFixes more than 150 bugs!\n\n\n- Version: " .. version
 
 ------------------------------------------------------------------------------------
 

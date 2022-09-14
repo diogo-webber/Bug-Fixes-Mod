@@ -10,8 +10,10 @@ Install and check all information and versions on the [mod page](https://steamco
 
 ## Contributing to the project
 You can suggest a bug to be fixed [**here**](https://steamcommunity.com/workshop/filedetails/discussion/2767977231/3189115819995770020/), providing as much information as possible.
+
+Also, if you have fixed any bugs, feel free to create a Pull Request.
 <br>
-Also, if you have fixed any bugs, feel free to create a Pull Request
+Here is the bugs backlog, web scraped from the don't starve Wiki: [**Notion**](https://phrygian-cobra-86e.notion.site/3b07c41b825a48aeb1450ae12a1c1ae9?v=3f1e84f30b404c11ad83e9637d7dcff7)
 
 ## License
 This project is under MIT license. See the [LICENSE](https://github.com/diogo-webber/Bug-Fixes-Mod/blob/main/LICENSE) file for more details.
