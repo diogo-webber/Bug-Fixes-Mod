@@ -818,8 +818,6 @@ AddStategraphPostInit("pig", function(sg)
     end
 end)
 
-------------------------------------------------------------------------------------
-
 local SGwilson = require("stategraphs/SGwilson")
 package.loaded["stategraphs/SGwilson"] = nil -- Unload the file
 
@@ -932,3 +930,49 @@ for _, suffix in pairs({
         end
     end)
 end
+
+------------------------------------------------------------------------------------
+
+-- Fixes child spawning in the void when the child spawner is located in an interior.
+AddComponentPostInit("childspawner", function(self)
+    local _SpawnChild = self.SpawnChild
+    function self:SpawnChild(target, prefab, radius, tries)
+        if not self.inst:IsInLimbo() then
+            return _SpawnChild(self)
+        end
+
+        if not self:CanSpawn() then
+            return
+        end
+
+        tries = tries or 1
+        if tries < 100 then
+            self.inst:DoTaskInTime(5, function(inst)
+                inst.components.childspawner:SpawnChild(target, prefab, radius, tries + 1)
+            end)
+        end
+    end
+end)
+
+AddComponentPostInit("spawner", function(self)
+    local _ReleaseChild = self.ReleaseChild
+    function self:ReleaseChild(tries)
+        if not self.inst:IsInLimbo() then
+            return _ReleaseChild(self)
+        end
+
+        tries = tries or 1
+        if tries < 100 then
+            self.inst:DoTaskInTime(5, function(inst)
+                inst.components.spawner:ReleaseChild(tries + 1)
+            end)
+        end
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Fixes the pig queen obnoxiously following wilba sometimes.
+AddPrefabPostInit("pigman_queen", function(inst)
+    inst.daily_gift = math.huge
+end)
