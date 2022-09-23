@@ -26,7 +26,8 @@ function env.LoadModPrefabFile(file)
 end
 
 env.MODS = {
-    Mouse_Through = 1719013848
+    Mouse_Through = 1719013848,
+    BetterModsScreen = 2842240212,
 }
 
 function env.IsModEnabled(mod)
@@ -130,8 +131,8 @@ Hooks = {
             onenter = CreatePrePostFns("onenter"),
             onexit = CreatePrePostFns("onexit"),
             AddToggleMoviment = AddToggleMoviment,
-            Pre = HookSG_StatePre,
-            Post = HookSG_StatePost,
+            Pre = HookSG_StatePre,      -- It's better to use onenter/onexit.
+            Post = HookSG_StatePost,    -- It's better to use onenter/onexit.
             Onenter_Onexit = Onenter_Onexit,
             ToggleBoat = ToggleBoat,
         },
@@ -141,3 +142,5 @@ Hooks = {
         },
     },
 }
+
+CreatePrePostFns = nil

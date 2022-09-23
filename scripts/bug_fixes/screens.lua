@@ -1,5 +1,4 @@
 
-
 local SAVEINTEGRATION_OVERRITES = {
     SW_COMP_DESCRIPTION = "Would you like to make this world compatible with Shipwrecked? This will add new mechanics to your world like wetness and overheating.",
     SW_COMP_ROG_DESCRIPTION = "Would you like to make this world compatible with Shipwrecked?",
@@ -98,12 +97,10 @@ AddGlobalClassPostConstruct("screens/slotdetailsscreen", "SlotDetailsScreen", En
 
 ------------------------------------------------------------------------------------
 
-local BetterModsScreenMod = "workshop-2842240212"
-
 -- Some little changes to Mods Screen text positions.
 AddGlobalClassPostConstruct("screens/modsscreen", "ModsScreen", function(self)
-    if KnownModIndex:IsModEnabled(BetterModsScreenMod) then
-        --return
+    if env.IsModEnabled(MODS.BetterModsScreen) then
+        return
     end
 
     local _RefreshOptions = self.RefreshOptions
@@ -122,9 +119,9 @@ AddGlobalClassPostConstruct("screens/modsscreen", "ModsScreen", function(self)
         _CreateDetailPanel(self)
 
         self.detailtitle:EnableWordWrap(true)
-        self.detailtitle:SetRegionSize(270, 40) --> False WordWrap
+        self.detailtitle:SetRegionSize(270, 40) --> Fake WordWrap
 
-        self.detailauthor:SetRegionSize(270, 30) --> False WordWrap
+        self.detailauthor:SetRegionSize(270, 30) --> Fake WordWrap
         self.detailauthor:SetColour(0.8, 0.8, 0.8, 1)
         self.detailauthor:SetPosition(70, 118, 0)
 

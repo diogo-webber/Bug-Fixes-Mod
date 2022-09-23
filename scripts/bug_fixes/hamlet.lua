@@ -106,7 +106,7 @@ if GetConfig("gifts") then
         "usher", "royalguard", "royalguard_2", "farmer", "miner",
     }
 
-    -- Wilba gifts load fix
+    -- Wilba gifts load fix.
     for _, prefab in ipairs(pigman_city) do
         AddPrefabPostInit("pigman_"..prefab, function(inst)
             local _OnSave = inst.OnSave
@@ -118,7 +118,7 @@ if GetConfig("gifts") then
             local _OnLoad = inst.OnLoad
             inst.OnLoad = function(inst, data)
                 _OnLoad(inst, data)
-                if data.daily_gift then
+                if data and data.daily_gift then
                     inst.daily_gift = data.daily_gift
                 end
             end
@@ -751,14 +751,13 @@ local function RocStatesMounted(sg, event)
     end)
 end
 
--- BFB cann't grab the player if mounted.
+-- BFB cannot grab the player if mounted.
 AddStategraphPostInit("roc_head", function(sg)
     RocStatesMounted(sg,"gobble")
     RocStatesMounted(sg, "bash")
 end)
 
 ------------------------------------------------------------------------------------
-
 
 if GetConfig("hulk_basalt") then
     local function BasaltAutoStack(self, pt, loots)
@@ -784,7 +783,7 @@ end
 
 ------------------------------------------------------------------------------------
 
--- Fixes a crash caused by the global root trunk entity being destroied.
+-- Fixes a crash caused by the global root trunk entity being destroyed.
 AddPrefabPostInit("roottrunk", function(inst)
     inst:RemoveComponent("workable")
     inst:RemoveComponent("burnable")
@@ -933,7 +932,9 @@ end
 
 ------------------------------------------------------------------------------------
 
--- Fixes child spawning in the void when the child spawner is located in an interior.
+-- TODO: This fix needs verification [Leonidas IV]
+
+--[[Fixes child spawning in the void when the child spawner is located in an interior. By https://github.com/L-Benjamin
 AddComponentPostInit("childspawner", function(self)
     local _SpawnChild = self.SpawnChild
     function self:SpawnChild(target, prefab, radius, tries)
@@ -968,11 +969,38 @@ AddComponentPostInit("spawner", function(self)
             end)
         end
     end
+end)]]
+
+------------------------------------------------------------------------------------
+
+-- Fixes the pig queen obnoxiously following Wilba sometimes. By: https://github.com/L-Benjamin
+AddPrefabPostInit("pigman_queen", function(inst)
+    inst.daily_gift = math.huge
 end)
 
 ------------------------------------------------------------------------------------
 
--- Fixes the pig queen obnoxiously following wilba sometimes.
-AddPrefabPostInit("pigman_queen", function(inst)
-    inst.daily_gift = math.huge
+-- Fixes infinity pig fiesta after load.
+-- GetClock():GetTotalTime() is 0 on load...
+AddComponentPostInit("aporkalypse", function(self)
+    local _OnSave = self.OnSave
+    function self:OnSave(data)
+        data = _OnSave(self, data)
+
+        data.fiesta_elapsed = GetClock():GetTotalTime() - self.fiesta_begin_date
+
+        return data
+    end
+
+    local _OnLoad = self.OnLoad
+    function self:OnLoad(data)
+        _OnLoad(self, data)
+
+        if self.fiesta_task then
+            self.fiesta_task:Cancel()
+
+            local duration = self.fiesta_duration - (data.fiesta_elapsed or 0)
+            self.fiesta_task = self.inst:DoTaskInTime(duration, function() self:EndFiesta() end)
+        end
+    end
 end)

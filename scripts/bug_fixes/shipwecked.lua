@@ -402,7 +402,7 @@ AddPlayerPostInit(function(inst)
     inst:DoTaskInTime(0, function()
         if not GetWorld():IsVolcano() then return end
         
-        -- Fix Boat speed multipliers when climb volcano.
+        -- Fixes Boat speed multipliers when climbing volcano.
         inst.components.locomotor:RemoveSpeedModifier_Additive("DRIVER")
         inst.components.locomotor:RemoveSpeedModifier_Mult("TRAWL")
         inst.components.locomotor:RemoveSpeedModifier_Mult("SAIL")
@@ -576,7 +576,7 @@ end)
 ------------------------------------------------------------------------------------
 
 if GetConfig("speed") then
-    -- Fixes character specials speed modifiers in World Reset
+    -- Fixes character specials speed modifiers in World Reset.
     AddComponentPostInit("locomotor", function(self)
         function self:OnProgress()
             if SaveGameIndex:GetCurrentMode(Settings.save_slot) ~= "adventure" then
@@ -1045,7 +1045,7 @@ end
 
 ------------------------------------------------------------------------------------
 
---The original noTags was being overwrited by {"sharkitten"}
+--The original noTags was being overwritten by the table {"sharkitten"}
 AddPrefabPostInit("tigershark", function(inst)
     inst.components.groundpounder.noTags = {"sharkitten", "FX", "NOCLICK", "DECOR", "INLIMBO", "groundpoundimmune"}
 end)
@@ -1065,6 +1065,7 @@ local function FloatingBeard(sg)
     end)
 end
 
+-- Beard hair will float when dropped from shaving.
 AddStategraphPostInit("wilson", FloatingBeard)
 AddStategraphPostInit("wilsonboating", FloatingBeard)
 
@@ -1077,3 +1078,60 @@ end
 -- Don't deploy mini signs on water...
 AddPrefabPostInit("minisign_item", test_ground)
 AddPrefabPostInit("minisign_drawn", test_ground)
+
+------------------------------------------------------------------------------------
+
+-- Prevent the frozen anim bug in all plants, caused by the use of "animover".
+-- This is a disgusting method, but it works.
+AddComponentPostInit("blowinwindgust", function(self)
+    local _OnEntityWake = self.OnEntityWake
+    function self:OnEntityWake(...)
+        _OnEntityWake(self, ...)
+        
+        local DebugInfo = self.inst.entity:GetDebugString()
+        local CurrentAnim, count = DebugInfo:gmatch(".zip:(.-) Frame:")() -- Extract the anim name from debug string.
+
+        if CurrentAnim and CurrentAnim:find("blown") then
+            self:CallGustStartFn(0) -- Perform the wind anim to call the normal anim next.
+        end
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Fixes the infinity off-screen ice production caused by the use of "animover".
+AddPrefabPostInit("icemaker", function(inst)
+    local spawnice = UpvalueHacker.GetUpvalue(inst.components.workable.onwork, "spawnice")
+
+    local function fueltaskfn(inst)
+        inst.AnimState:PlayAnimation("use")
+        inst.SoundEmitter:PlaySound("dontstarve_DLC002/common/icemachine_start")
+        inst.components.fueled:StopConsuming()
+        inst:DoTaskInTime(2.7, spawnice) -- The animation length.
+    end
+
+    local _sectionfn = inst.components.fueled.sectionfn
+
+    inst.components.fueled.sectionfn = function(new, old, inst)
+        _sectionfn(new, old, inst)
+        if new > 0 and old == 0 and inst.fueltask then
+            inst.fueltask:Cancel()
+            inst.fueltask = inst:DoPeriodicTask(TUNING.ICEMAKER_SPAWN_TIME, fueltaskfn)
+        end
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Sapling will perform the correct anim after being blown by the wind.
+AddPrefabPostInit("sapling", function(inst)
+    inst.onblownpstdone = function(inst)
+        if  inst.components.pickable and
+            inst.components.pickable:CanBePicked() and
+            inst.AnimState:IsCurrentAnimation("blown_pst") then
+                inst.AnimState:PlayAnimation("sway", true)
+        end
+
+        inst:RemoveEventCallback("animover", inst.onblownpstdone)
+    end
+end)

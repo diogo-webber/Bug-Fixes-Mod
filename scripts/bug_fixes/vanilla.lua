@@ -436,32 +436,18 @@ end
 
 ------------------------------------------------------------------------------------
 
--- Delay 3 frames to show the ARM_carry to don't glitch the item_out anim
---[[AddComponentPostInit("equippable", function(self)
-    local _Equip = self.Equip
-    function self:Equip(owner, slot)
-        local _onequipfn = self.onequipfn
-        
-        self.onequipfn = nil
-        _Equip(self, owner, slot)
-        self.onequipfn = _onequipfn
-        
-        if self.onequipfn then
-            owner:DoTaskInTime(3*FRAMES, function()
-                self.onequipfn(self.inst, owner, self.swapbuildoverride or nil)
-                self.inst:PushEvent("equipped", {owner=owner, slot=slot}) -- For work with the skins mod.
-            end)
-        end
-    end
-end)]]
-
+-- Delay 3 frames to show the "ARM_carry" symbol to don't glitch the "item_out" anim.
 AddComponentPostInit("equippable", function(self)
-    local _SetOnEquip = self.SetOnEquip
     function self:SetOnEquip(fn)
         self.onequipfn = function(inst, owner, override)
-            self.inst:DoTaskInTime(3*FRAMES, function()
-                fn(inst, owner, override)
-            end)
+            if self.equipslot == EQUIPSLOTS.HANDS then
+                self.inst:DoTaskInTime(3*FRAMES, function()
+                    fn(inst, owner, override)
+                end)
+                return
+            end
+
+            fn(inst, owner, override)
         end
     end
 end)
@@ -489,7 +475,7 @@ end)
 
 ------------------------------------------------------------------------------------
 
--- 3 hits to break them
+-- 3 hits to break them.
 local function SkeletonTweak(inst)
     inst.components.workable:SetWorkLeft(3)
 end
@@ -783,6 +769,7 @@ AddStategraphPostInit("wilson", function(sg)
         end
     end)
 
+    -- This is not totally correct...
     if not sg.states["book"].timeline[1].defline:find("workshop-") then -- I don't want to override other mods.
         sg.states["book"].timeline[1].fn = function(inst)
             local fxtoplay = inst.prefab == "waxwell" and "waxwell_book_fx" or "book_fx"
@@ -852,6 +839,7 @@ AddComponentPostInit("playercontroller", function(self)
     end
 end)
 
+-- Beefalo no longer uses the player equipment to do melee attacks.
 AddComponentPostInit("combat", function(self)
     local _GetWeapon = self.GetWeapon
     function self:GetWeapon(...)
@@ -1428,13 +1416,6 @@ end
 ------------------------------------------------------------------------------------
 
 if hasRoG then -- Crops don't wither when protected by flingo (flingo unloaded problem)
-
-    local function Crop_witherHandler(world_or_self, data) 
-        if self.witherable and not self.withered and not self.protected and data.temp > self.wither_temp then
-            self:MakeWithered()
-        end
-    end
-
     local function Crop_OnEntitySleep(self)
         self.inst:RemoveEventCallback("witherplants", self.witherHandler, GetWorld())
     end
@@ -1612,19 +1593,22 @@ local function SmallLaunch(inst, launcher, basespeed)
         inst.components.inventoryitem:OnStartFalling()
     end
 
-    launcher.sg.mem.recentlybounced[inst.GUID] = true
-    launcher:DoTaskInTime(.6, ClearRecentlyBounced, inst.GUID)
+    if inst.sg then
+        launcher.sg.mem.recentlybounced[inst.GUID] = true
+        launcher:DoTaskInTime(.6, ClearRecentlyBounced, inst.GUID)
+    end
 end
 
 local function BounceStuff(inst, point)
-    if inst.sg.mem.recentlybounced == nil then
+    if inst.sg and inst.sg.mem.recentlybounced == nil then
         inst.sg.mem.recentlybounced = {}
     end
+
     local ents = TheSim:FindEntities(point.x, point.y, point.z, 3, BOUNCESTUFF_MUST_TAGS, BOUNCESTUFF_CANT_TAGS)
     for i, v in ipairs(ents) do
         if v:IsValid() and 
         v.components.inventoryitem and
-        not (v.components.inventoryitem.nobounce or inst.sg.mem.recentlybounced[v.GUID]) and
+        not (v.components.inventoryitem.nobounce or (inst.sg and inst.sg.mem.recentlybounced[v.GUID])) and
         (not v.GetIsOnWater or not v:GetIsOnWater()) and
         v.Physics ~= nil and
         v.Physics:IsActive() then
@@ -1641,7 +1625,7 @@ AddComponentPostInit("groundpounder", function(self)
     function self:DestroyPoints(points, ...)
         _DestroyPoints(self, points, ...)
 
-        if self.inst.sg and not self.inst:HasTag("minotaur") and self.groundpoundfx ~= "firesplash_fx" then
+        if not self.inst:HasTag("minotaur") and self.groundpoundfx ~= "firesplash_fx" then
             for k,v in pairs(points) do
                 BounceStuff(self.inst, v)
             end
@@ -1658,7 +1642,7 @@ end)
 
 ------------------------------------------------------------------------------------
 
-if not IsModEnabled(MODS.Mouse_Through) then -- Mouse Through do it, but in a different way.
+if not env.IsModEnabled(MODS.Mouse_Through) then -- Mouse Through do it, but in a different way.
     if not hasHAM then
         
         -- Port the pick condition system from hamlet.
@@ -1692,9 +1676,7 @@ if not IsModEnabled(MODS.Mouse_Through) then -- Mouse Through do it, but in a di
             self.pickConditions[name] = {condition, weight}
         end
 
-        function TheInput:OnUpdate()
-            if PLATFORM == "PS4" then return end
-        
+        function TheInput:OnUpdate()        
             local useController = TheInput:ControllerAttached()
             if useController ~= self.useController then
                 self.useController = useController
