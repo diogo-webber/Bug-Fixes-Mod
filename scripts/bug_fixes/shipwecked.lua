@@ -177,12 +177,12 @@ end
 AddStategraphPostInit("wilsonboating", function(self)
     Hooks.sg.state.onenter.Post(self, "use_fan", function(inst, arg)
         local fan = inst:GetBufferedAction().invobject
-        if fan then -- Fix Doydoy Fan Texture on boat
+        if fan then -- Fixes Doydoy Fan Texture on boats.
             inst.AnimState:OverrideSymbol("fan01", fan.animinfo, "fan01")
         end
     end)
 
-    self.states["use_fan"].timeline = -- Fix Fans missing sound on boat
+    self.states["use_fan"].timeline = -- Fixes Fans missing sound on boat
         {   
             TimeEvent(26*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC002/common/luxury_fan", "fan") end),
             TimeEvent(70*FRAMES, function(inst) inst:PerformBufferedAction() end),
@@ -288,6 +288,7 @@ local function CommonFishFix(inst)
     for task, _ in pairs(inst.pendingtasks) do
         if task.period == 5 then
             task.fn = UpdateFishAnims
+            break
         end
     end
 
@@ -351,7 +352,7 @@ local function MoveBoatOnUpdate(self)
     end
 end
 
--- Little change to boat position to work properly with the bundling anim hack
+-- Little change to boat position to work properly with the bundling anim hack.
 AddComponentPostInit("driver", function(self)
     local _OnUpdate = self.OnUpdate
     function self:OnUpdate(dt)
@@ -382,7 +383,7 @@ AddStategraphPostInit("wilsonboating", function(sg)
 
     ------------------------------------------------------------------------------------
 
-    -- Fix invisible boat on telebrella teleport
+    -- Fixes invisible boat on telebrella teleport
     Hooks.sg.state.onenter.Post(sg, "telebrella", function(inst, arg)
         local downvec = TheCamera:GetDownVec()
         local facedown = -(math.atan2(downvec.z, downvec.x) * (180/math.pi))
@@ -468,10 +469,10 @@ local function FenceDeployFixes(inst)
 
     if hasHAM then return end
 
-    -- Fix fence deploy on water in non-hamlet worlds.
+    -- Fixes fence deploy on water in non-hamlet worlds.
     local _test = inst.components.deployable.test
     inst.components.deployable.test = function(inst, pt, deployer)
-        return _test and not inst:GetIsOnWater(pt:Get())
+        return not (_test and not _test(inst, pt, deployer)) and not inst:GetIsOnWater(pt:Get())
     end
 end
 
@@ -531,7 +532,7 @@ end
 
 -- Save-exit when using the Quackering Ram attack don't corrupt the save anymore.
 AddPrefabPostInit("quackering_wake", function(inst)
-    inst.persists = false -- Don't save FX Klei...
+    inst.persists = false
 end)
 
 ------------------------------------------------------------------------------------
@@ -557,7 +558,7 @@ if GetConfig("fishfarm") then
 
             if self.lureTask then
                 data.luretasktime = GetTaskRemaining(self.lureTask)
-                data.luretask = data.luretasktime -- Other misswrite
+                data.luretask = data.luretasktime -- Other miswrite
             end
 
             return data
@@ -1075,9 +1076,13 @@ local function test_ground(inst, pt, deployer)
     return not inst:GetIsOnWater(pt:Get())
 end
 
+local function AddMiniSignDeployTest(inst)
+    inst.components.deployable.test = test_ground
+end
+
 -- Don't deploy mini signs on water...
-AddPrefabPostInit("minisign_item", test_ground)
-AddPrefabPostInit("minisign_drawn", test_ground)
+AddPrefabPostInit("minisign_item", AddMiniSignDeployTest)
+AddPrefabPostInit("minisign_drawn", AddMiniSignDeployTest)
 
 ------------------------------------------------------------------------------------
 

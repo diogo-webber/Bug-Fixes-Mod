@@ -729,7 +729,7 @@ local function mystery_AddReward(self, reward)
     end)
 end
 
--- Fixes the duplicate loot... Klei and her code...
+-- Fixes the duplicate loot.
 AddComponentPostInit("mystery", function(self)
     self.AddReward = mystery_AddReward
 end)
@@ -1002,5 +1002,51 @@ AddComponentPostInit("aporkalypse", function(self)
             local duration = self.fiesta_duration - (data.fiesta_elapsed or 0)
             self.fiesta_task = self.inst:DoTaskInTime(duration, function() self:EndFiesta() end)
         end
+    end
+end)
+
+------------------------------------------------------------------------------------
+
+local function IsInBounds(inst, pt)
+    local interiorSpawner = GetWorld().components.interiorspawner
+
+    if interiorSpawner.current_interior then
+        local width = interiorSpawner.current_interior.width
+        local depth = interiorSpawner.current_interior.depth
+        local originpt = interiorSpawner:getSpawnOrigin()
+
+        local dMax = originpt.x + depth/2
+        local dMin = originpt.x - depth/2
+
+        local wMax = originpt.z + width/2
+        local wMin = originpt.z - width/2 
+
+        local dist = 0.5
+
+        if pt.x < dMin+dist or pt.x > dMax -dist or pt.z < wMin+dist or pt.z > wMax-dist then
+            return false
+        end 
+    end
+
+    return true
+end
+
+local function DeployTestInteriorWalls(inst)
+    local _test = inst.components.deployable.test
+
+    inst.components.deployable.test = function(inst, pt, deployer)
+        return not (_test and not _test(inst, pt, deployer)) and IsInBounds(inst, pt)
+    end
+end
+
+-- Deployables can't be placed in walls! [1.14 Fix]
+AddPrefabPostInit("spidereggsack",   DeployTestInteriorWalls)
+AddPrefabPostInit("minisign_item",   DeployTestInteriorWalls)
+AddPrefabPostInit("minisign_drawn",  DeployTestInteriorWalls)
+AddPrefabPostInit("tar",             DeployTestInteriorWalls)
+
+AddPrefabPostInitAny(function(inst)
+    if inst:HasTag("wallbuilder") then
+        DeployTestInteriorWalls(inst)
     end
 end)
