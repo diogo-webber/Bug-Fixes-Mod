@@ -535,7 +535,7 @@ local function reconstruction_project_displaynamefn(inst)
 end
 
 AddPrefabPostInit("reconstruction_project", function(inst)
-    -- Can be breaked by city hammer:
+    -- Can be broken by city hammer:
     --inst:AddTag("fixable") --TODO
 
     if GetConfig("pigfixer") then
@@ -551,7 +551,7 @@ AddPrefabPostInit("reconstruction_project", function(inst)
         inst.nameoverride = nil
     end)
 
-    -- Fixes the missing name after load and add a sufix.
+    -- Fixes the missing name after load and add a suffix.
     inst.displaynamefn = reconstruction_project_displaynamefn
 end)
 
@@ -603,7 +603,7 @@ for n=1, 7 do
 end
 
 for n=1, 4 do
-    -- Fix missing name for broken/burnt topyaries, make them burnable and add some fx.
+    -- Fixes missing name for broken/burnt topyaries, make them burnable and add some fx.
     -- Remove the bugged snow symbol that bug the mouse over.
     AddPrefabPostInit("topiary_"..n, function(inst)
         inst.components.fixable:SetPrefabName("topiary")
@@ -666,7 +666,7 @@ local doors = {
 }
 
 for _, door in pairs(doors) do
-    -- Fixes a wrong funtion name on doors.
+    -- Fixes a wrong function name on doors.
     AddPrefabPostInit(door.."_door", function(inst)
         inst.components.workable.canbeworkedby = inst.components.workable.canbeworkedbyfn
     end)
@@ -674,7 +674,7 @@ end
 
 ------------------------------------------------------------------------------------
 
--- Fixes mouse over effect missing in childrens for Aporkalypse Calendar.
+-- Fixes mouse over effect missing in children for Aporkalypse Calendar.
 AddPrefabPostInit("aporkalypse_clock1", function(inst)
     inst:DoTaskInTime(.1, function()
         inst.highlightchildren = {inst.parent}

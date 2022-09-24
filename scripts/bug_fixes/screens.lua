@@ -55,7 +55,7 @@ local function PopupHook(self)
 
     for _, button in pairs(self.buttons) do
         for _, word in pairs(cancel_like_words) do
-            if button.text:find(word) then
+            if button.text and button.text:find(word) then
                 self.cancel_button = button
                 break
             end
@@ -87,7 +87,7 @@ local function EnableDLCOnControlInternal(self, control, down)
     end
 end
 
--- Slot Detail Screen ESC Fix
+-- Slot Detail Screen ESC Fix.
 local function EnableDLCOnControl(self)
     self.OnControl = EnableDLCOnControlInternal
 end

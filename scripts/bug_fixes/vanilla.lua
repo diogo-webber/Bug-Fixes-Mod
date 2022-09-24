@@ -1644,24 +1644,23 @@ end)
 
 if not env.IsModEnabled(MODS.Mouse_Through) then -- Mouse Through do it, but in a different way.
     if not hasHAM then
-        
         -- Port the pick condition system from hamlet.
-        local function PickWeight(ent)
-            local weight = 0
+        local function GetSortedEntitiesAtScreenPoint(self)
+            local function PickWeight(ent)
+                local weight = 0
 
-            for i,v in pairs(self.pickConditions) do
-                local condition = v[1]
-                weight = weight + (condition(ent) and v[2] or 0)
+                for i,v in pairs(self.pickConditions) do
+                    local condition = v[1]
+                    weight = weight + (condition(ent) and v[2] or 0)
+                end
+
+                return weight
             end
 
-            return weight
-        end
+            local function cmp(a, b)
+                return PickWeight(a) > PickWeight(b)
+            end
 
-        local function cmp(a, b)
-            return PickWeight(a) > PickWeight(b)
-        end
-
-        local function GetSortedEntitiesAtScreenPoint(self)
             local ents = TheSim:GetEntitiesAtScreenPoint(TheSim:GetPosition())
 
             table.insert(ents, nil)
