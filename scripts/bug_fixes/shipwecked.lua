@@ -1106,6 +1106,8 @@ end)
 
 -- Fixes the infinity off-screen ice production caused by the use of "animover".
 AddPrefabPostInit("icemaker", function(inst)
+    if not (inst.components.workable and inst.components.workable.onwork) then return end -- Prevent a odd chash...
+
     local spawnice = UpvalueHacker.GetUpvalue(inst.components.workable.onwork, "spawnice")
 
     local function fueltaskfn(inst)
