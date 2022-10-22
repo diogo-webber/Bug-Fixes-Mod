@@ -422,8 +422,12 @@ local tubertree_sufixs = {"", "_tall", "_short", "_burnt", "_stump"}
 -- Fixes a lot of irregularities in tuber trees. Thanks to: Faintly Macabre.
 for _, sufix in pairs(tubertree_sufixs) do
     AddPrefabPostInit("tubertree"..sufix, function(inst)
-        if sufix == "_stump" then
+        if sufix == "_stump" and inst.components.hackable then
             inst:RemoveComponent("hackable")
+        end
+
+        if not inst.components.hackable then
+            return
         end
 
         local hackable = inst.components.hackable

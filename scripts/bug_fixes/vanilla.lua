@@ -442,7 +442,9 @@ AddComponentPostInit("equippable", function(self)
         self.onequipfn = function(inst, owner, override)
             if self.equipslot == EQUIPSLOTS.HANDS then
                 self.inst:DoTaskInTime(3*FRAMES, function()
-                    fn(inst, owner, override)
+                    if self.isequipped then
+                        fn(inst, owner, override)
+                    end
                 end)
                 return
             end
