@@ -437,13 +437,17 @@ end
 ------------------------------------------------------------------------------------
 
 -- Delay 3 frames to show the "ARM_carry" symbol to don't glitch the "item_out" anim.
+-- Horrible method.
 AddComponentPostInit("equippable", function(self)
     function self:SetOnEquip(fn)
         self.onequipfn = function(inst, owner, override)
             if self.equipslot == EQUIPSLOTS.HANDS then
-                self.inst:DoTaskInTime(3*FRAMES, function()
+                inst:DoTaskInTime(3*FRAMES, function()
                     if self.isequipped then
                         fn(inst, owner, override)
+                        if inst.components.dsskins and inst.components.dsskins.skin then
+                            inst:PushEvent("equipped", {owner=self.owner, slot=self.equipslot}) -- Swap to skin build.
+                        end
                     end
                 end)
                 return
@@ -1750,4 +1754,11 @@ AddPrefabPostInit("staffcastfx", function(inst)
         inst.AnimState:PlayAnimation("staff_mount")
         inst.AnimState:SetTime(.3)
     end
+end)
+
+------------------------------------------------------------------------------------
+
+-- Fixes foliage being invisible in base game and ROG:
+AddPrefabPostInit("foliage", function(inst)
+    inst.AnimState:PlayAnimation("idle")
 end)

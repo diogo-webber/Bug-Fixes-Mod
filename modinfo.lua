@@ -1,7 +1,7 @@
 name = "Bug Fixes"
 author = "Leonidas IV"
 
-version = "1.13.5"
+version = "1.13.6"
 
 description = "\nFixes more than 150 bugs!\n\n\n- Version: " .. version
 
@@ -29,6 +29,17 @@ local configs = {
 
 ------------------------------------------------------------------------------------
 
+local yes_no_table = {
+    {description = "Yes", data = true },
+    {description = "No" , data = false},
+}
+
+local fixed_vanilla_table = {
+    {description = "Fixed",   data = true },
+    {description = "Vanilla", data = false},
+}
+
+
 configuration_options = {}
 
 for i=1, #configs do
@@ -36,18 +47,11 @@ for i=1, #configs do
         name = configs[i].id,
         label = configs[i].label,
         default = true,
-        options = configs[i].yesno and
-        {
-            {description = "Yes", data = true},
-            {description = "No", data = false},
-        }
-            or 
-        {
-            {description = "Fixed", data = true},
-            {description = "Vanilla", data = false},
-        }
+        options = configs[i].yesno and yes_no_table or fixed_vanilla_table
     }
 end
+
+configs, yes_no_table, fixed_vanilla_table = nil, nil, nil
 
 ------------------------------------------------------------------------------------
 
