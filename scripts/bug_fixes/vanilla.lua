@@ -387,7 +387,7 @@ local function EnableShadow(inst, arg)
 end
 
 local function DisableShadow(inst, arg)
-    inst.DynamicShadow:Enable(true)
+    inst.DynamicShadow:Enable(false)
 end
 
 -- Fixes a inconsistent shadow in telebrella anim
