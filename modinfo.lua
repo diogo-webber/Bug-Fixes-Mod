@@ -1,30 +1,30 @@
-name = "Bug Fixes"
+name = "Bug Fixes!"
 author = "Leonidas IV"
 
-version = "1.13.6"
+version = "2.0"
 
-description = "\nFixes more than 150 bugs!\n\n\n- Version: " .. version
+description = "Note: 95% of the fixes are now officially\nimplemented, so here are just the\nunimplemented ones and some features disguised as fixes."
 
 ------------------------------------------------------------------------------------
 
 local configs = {
-    {id = "recipe",             label = "Learn Recipes",                yesno=true },
-    {id = "bundle_fx",          label = "DST Bundle Effects",           yesno=true },
-    {id = "treeseed",           label = "Tree Seed Exploit/Bug",                   },
-    {id = "trap",               label = "Extra Trapped Mobs",           yesno=true },
-    {id = "speed",              label = "Speed after World Reset",                 },
-    {id = "shadowcreature",     label = "Shadow Creatures Spawn",                  },
-    {id = "limpet",             label = "Flingomatic Limpet Rock",                 },
-    {id = "rain",               label = "Hurricane Storm",                         },
-    {id = "butterfly",          label = "Plant Flower Test",                       },
-    {id = "flup",               label = "Flup Respawn",                            },
-    {id = "fishfarm",           label = "Fish Farm's Raids",                       },
-    {id = "lava",               label = "Pitch Fork Volcano-Lava",                 },
-    {id = "pressureplate",      label = "Pressures Plates",                        },
-    {id = "gifts",              label = "Wilba Gifts",                             },
-    {id = "pigfixer",           label = "Worker Pig Changes",           yesno=true },
-    {id = "cityplants",         label = "City Plants Changes",          yesno=true },
-    {id = "hulk_basalt",        label = "Basalt Drops Auto-Stack",      yesno=true },
+    --{id = "recipe",             label = "Learn Recipes",                yesno=true },
+    --{id = "bundle_fx",          label = "DST Bundle Effects",           yesno=true },
+    --{id = "treeseed",           label = "Tree Seed Exploit/Bug",                   },
+    --{id = "trap",               label = "Extra Trapped Mobs",           yesno=true },
+    --{id = "speed",              label = "Speed after World Reset",                 },
+    --{id = "shadowcreature",     label = "Shadow Creatures Spawn",                  },
+    --{id = "limpet",             label = "Flingomatic Limpet Rock",                 },
+    --{id = "rain",               label = "Hurricane Storm",                         },
+    --{id = "butterfly",          label = "Plant Flower Test",                       },
+    --{id = "flup",               label = "Flup Respawn",                            },
+    --{id = "fishfarm",           label = "Fish Farm's Raids",                       },
+    --{id = "lava",               label = "Pitch Fork Volcano-Lava",                 },
+    --{id = "pressureplate",      label = "Pressures Plates",                        },
+    --{id = "gifts",              label = "Wilba Gifts",                             },
+    --{id = "pigfixer",           label = "Worker Pig Changes",           yesno=true },
+    --{id = "cityplants",         label = "City Plants Changes",          yesno=true },
+      {id = "hulk_basalt",        label = "Basalt Drops Auto-Stack",      yesno=true },
 }
 
 ------------------------------------------------------------------------------------
@@ -66,5 +66,3 @@ hamlet_compatible = true
 
 icon_atlas = "Icons/modicon.xml"
 icon = "modicon.tex"
-
-
