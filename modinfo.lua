@@ -1,7 +1,7 @@
 name = "Bug Fixes!"
 author = "Leonidas IV"
 
-version = "2.0"
+version = "2.0.1"
 
 description = "Note: 95% of the fixes are now officially\nimplemented, so here are just the\nunimplemented ones and some features disguised as fixes."
 

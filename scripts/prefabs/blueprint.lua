@@ -1,6 +1,3 @@
-
--- Replace the file to remove uncraftable items's blueprints.
-
 require "recipes"
 
 local assets =
@@ -82,13 +79,17 @@ local function fn()
 	    MakeInventoryFloatable(inst, "idle_water", "idle")
     end
 
-    inst:AddComponent("inspectable")    
+    inst:AddComponent("inspectable")
+    inst.components.inspectable.nameoverride = "blueprint"
     inst:AddComponent("inventoryitem")
     inst.components.inventoryitem:ChangeImageName("blueprint")
     inst:AddComponent("named")
     inst:AddComponent("teacher")
     inst.components.teacher.onteach = OnTeach
-    
+
+    MakeSmallBurnable(inst, TUNING.SMALL_BURNTIME)
+    MakeSmallPropagator(inst)
+
     inst.OnLoad = onload
     inst.OnSave = onsave
 
@@ -102,21 +103,8 @@ local function MakeAnyBlueprint()
     local knownrecipes = {}
     for k, v in pairs(GetAllRecipes()) do
         if IsRecipeValid(v.name) and CanBlueprintRandomRecipe(v) then
-            local known = false
-            local player = GetPlayer()
-
-            if player.components.builder:KnowsRecipe(v) then
-                if IsDLCEnabled(3) then
-                    if v.tab and not v.tab.isReno and not v:is_a(RecipeCategory) then
-                        known = true
-                        break
-                    end
-                else
-                    known = true
-                    break
-                end
-            end
-            
+            local known = GetPlayer().components.builder:KnowsRecipe(v) and v.tab and not v.tab.isReno and not v:is_a(RecipeCategory)
+    
             table.insert(known and knownrecipes or unknownrecipes, v)
         end
     end
@@ -150,24 +138,11 @@ local function MakeAnyBlueprintFromTab(recipetab)
 
         local unknownrecipes = {}
         local knownrecipes = {}
-        for k, v in pairs(GetAllRecipes()) do
+        for k, v in pairs(GetAllKnownRecipes()) do
             if IsRecipeValid(v.name) and v.tab == recipetab and CanBlueprintRandomRecipe(v) then
-                local known = false
-                local player = GetPlayer()
-
-                if player.components.builder:KnowsRecipe(v) then
-                    if IsDLCEnabled(3) then
-                        if v.tab and not v.tab.isReno and not v:is_a(RecipeCategory) then
-                            known = true
-                            break
-                        end
-                    else
-                        known = true
-                        break
-                    end
-                end
-               
-                table.insert(known and knownrecipes or unknownrecipes, v)
+				local known = GetPlayer().components.builder:KnowsRecipe(v) and v.tab and not v.tab.isReno and not v:is_a(RecipeCategory)
+    
+				table.insert(known and knownrecipes or unknownrecipes, v)
             end
         end
         inst.recipetouse =
@@ -188,7 +163,7 @@ for k, v in pairs(RECIPETABS) do
         table.insert(prefabs, Prefab(string.lower(v.str or "NONAME").."_blueprint", MakeAnyBlueprintFromTab(v), assets))
     end
 end
-for k, v in pairs(GetAllRecipes()) do
+for k, v in pairs(GetAllKnownRecipes()) do
     if CanBlueprintSpecificRecipe(v) then
         table.insert(prefabs, Prefab("common/inventory/"..string.lower(k or "NONAME").."_blueprint", MakeSpecificBlueprint(k), assets))
     end

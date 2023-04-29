@@ -1,6 +1,3 @@
-
--- Replace the brain because AddBrainPostInit is hell.
-
 require "behaviours/wander"
 require "behaviours/runaway"
 require "behaviours/doaction"
@@ -28,7 +25,8 @@ local function GoHomeAction(inst)
     if inst.components.homeseeker and
     inst.components.homeseeker:HasHome() then
         if inst.components.homeseeker.home:HasTag("stump") or
-        inst.components.homeseeker.home:HasTag("burnt") then
+        inst.components.homeseeker.home:HasTag("burnt") or
+        inst.components.homeseeker.home:HasTag("fire") then
             inst.components.homeseeker.home:RemoveComponent( "spawner" )
             inst:RemoveComponent("homeseeker")
             return
@@ -67,6 +65,7 @@ local function PickupAction(inst)
                     item.components.inventoryitem and
                     not item.components.inventoryitem:IsHeld() and
                     item.components.inventoryitem.canbepickedup and
+                    item.components.container == nil and
                     item:IsOnValidGround() and
                     not item:HasTag("trap") and 
                     not item:HasTag("irreplaceable")
